@@ -1,0 +1,100 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  lint-test-build:
+    name: Lint, test, and build
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/iam_crm_ci
+      JWT_SECRET: ci_jwt_secret_00000000000000000000000000000000
+      JWT_EXPIRES_IN: 15m
+      REFRESH_TOKEN_EXPIRES_IN: 30d
+      CORS_ORIGINS: http://localhost:5173
+      CORS_CREDENTIALS: true
+      SSO_SECRET_ENCRYPTION_KEY: ci_sso_secret_00000000000000000000000000000000
+      SSO_TICKET_TTL: 120
+      FRONTEND_SSO_CALLBACK_URL: http://localhost:5173/auth/sso/callback
+      BACKEND_PUBLIC_URL: http://localhost:3000
+      WEBAUTHN_RP_NAME: IAM CRM
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_ORIGIN: http://localhost:5173
+      APP_VERSION: 0.1.0-ci
+      APP_COMMIT_SHA: ${{ github.sha }}
+      APP_BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iam_crm_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d iam_crm_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      - name: Review migration SQL safety
+        run: npm run safety:scan-migrations > migration-safety-review.json
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Generate canonical OpenAPI contract
+        run: npm run openapi:generate
+
+      - name: Validate OpenAPI contract
+        run: npm run openapi:validate
+
+      - name: Run contract tests
+        run: npm run test:contract
+
+      - name: Verify committed contract is current
+        run: git diff --exit-code -- openapi/openapi.json
+
+      - name: Compare OpenAPI with target branch
+        if: github.event_name == 'pull_request'
+        run: |
+          if git show "origin/${{ github.base_ref }}:openapi/openapi.json" > /tmp/openapi-base.json 2>/dev/null; then
+            npm run openapi:breaking -- /tmp/openapi-base.json openapi/openapi.json
+          else
+            echo "No target-branch OpenAPI baseline exists; Fix94 establishes it."
+          fi

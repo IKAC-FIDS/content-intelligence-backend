@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iam_crm
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: iam_crm
+    ports:
+      - "15432:5432"
+    volumes:
+      - iam_crm_db_data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: iam-crm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: iam-crm-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing local/iam-crm-attachments;
+      exit 0;
+      "
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+      - minio
+      - minio-init
+    env_file:
+      - .env.docker
+    environment:
+      DATABASE_URL: "postgresql://iam_crm_runtime:runtime-password-change-me@db:5432/iam_crm?schema=public"
+      MIGRATION_DATABASE_URL: "postgresql://iam_crm:changeme@db:5432/iam_crm?schema=public"
+      PORT: 3000
+
+      ATTACHMENT_STORAGE_DRIVER: "minio"
+      MAX_ATTACHMENT_SIZE_BYTES: 26214400
+
+      S3_ENDPOINT: "http://minio:9000"
+      S3_REGION: "us-east-1"
+      S3_BUCKET: "iam-crm-attachments"
+      S3_ACCESS_KEY_ID: "minioadmin"
+      S3_SECRET_ACCESS_KEY: "minioadmin"
+      S3_FORCE_PATH_STYLE: "true"
+    ports:
+      - "3000:3000"
+    command: sh -c 'DATABASE_URL="$$MIGRATION_DATABASE_URL" npx prisma migrate deploy && node dist/src/main.js'
+
+volumes:
+  iam_crm_db_data:
+  minio_data:

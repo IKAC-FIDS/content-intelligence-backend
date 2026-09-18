@@ -1,0 +1,3644 @@
+// ============================================================
+// IAM Sales CRM - Database Schema (نسخه نهایی با ماژولار Industry)
+// ============================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  REP
+  BOARDS
+}
+
+enum PlatformRole {
+  PLATFORM_ADMIN
+}
+
+enum RoleScope {
+  SYSTEM
+  TENANT
+}
+
+enum FeatureKey {
+  SSO
+  PASSKEY
+  ADVANCED_RBAC
+  CUSTOM_DOMAINS
+  BRANDING
+  AUDIT
+  REPORTING
+}
+
+enum SubscriptionType {
+  STANDARD
+  TRIAL
+  MANUAL_CONTRACT
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+enum EntitlementOverrideState {
+  ENABLED
+  DISABLED
+}
+
+enum QuotaMetric {
+  ACTIVE_USERS
+  COMPANIES
+  OPPORTUNITIES
+  FILES
+  STORAGE_BYTES
+  API_CALLS
+  WORKFLOW_RUNS
+  WEBHOOK_DELIVERIES
+  EMAIL_SENDS
+  AI_REQUESTS
+}
+
+enum QuotaResetPeriod {
+  NONE
+  DAILY
+  MONTHLY
+  SUBSCRIPTION_TERM
+}
+
+enum UsageReservationStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+  EXPIRED
+}
+
+enum SsoProviderType {
+  OIDC
+  SAML
+}
+
+enum SsoRoutingKind {
+  DOMAIN
+  SUBDOMAIN
+}
+
+enum LegacyPipelineStage {
+  LEAD
+  CONTACTED
+  INTERESTED
+  QUALIFIED
+  NEEDS_ASSESSMENT
+  PENDING_PRE_INVOICE_APPROVAL
+  POC_PILOT_SCHEDULED
+  POC_PILOT_IN_PROGRESS
+  PENDING_POC_PILOT_APPROVAL
+  PENDING_PAYMENT_INVOICE_APPROVAL
+  INSTALLATION_SCHEDULED
+  INSTALLATION_IN_PROGRESS
+  PENDING_CUSTOMER_ACCEPTANCE
+  DONE
+  ON_HOLD
+  LOST
+  NO_RESPONSE
+
+  @@map("PipelineStage")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  STRATEGIC
+}
+
+enum CompanyOwnership {
+  PRIVATE
+  STATE
+  SEMI_STATE
+  PUBLIC_LISTED
+  BANK
+  HOLDING
+}
+
+enum CompanyActivityStatus {
+  ACTIVE
+  INACTIVE
+  MERGED
+  UNKNOWN
+}
+
+enum CompanyLegalDocumentType {
+  OFFICIAL_GAZETTE
+  LATEST_CHANGES
+}
+
+enum PersonEducationDegree {
+  DIPLOMA
+  ASSOCIATE
+  BACHELOR
+  PHD
+  POSTDOC
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  LINKEDIN_MESSAGE
+  LINKEDIN_ENGAGEMENT
+  MEETING
+  NOTE
+  STAGE_CHANGE
+}
+
+enum SocialPlatform {
+  LINKEDIN
+  INSTAGRAM
+  TELEGRAM
+  BALE
+  EITAA
+  SOROUSH
+  ROOBIKA
+  APARAT
+  YOUTUBE
+  WEBSITE
+}
+
+enum CommercialDocumentType {
+  PROPOSAL
+  PROFORMA
+  CONTRACT
+}
+
+enum CommercialDocumentStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  SIGNED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CHECK
+  CARD
+  OTHER
+}
+
+enum FileAttachmentEntityType {
+  COMPANY
+  OPPORTUNITY
+  PERSON
+  TASK
+  ACTIVITY
+  COMMERCIAL_DOCUMENT
+  PAYMENT
+  COMPANY_LEGAL_DOCUMENT
+  MEETING
+  PRODUCT
+  ORGANIZATION
+  TECHNICAL_DOCUMENT
+  TECHNICAL_RESOURCE
+}
+
+enum AttachmentStorageProvider {
+  LOCAL
+  MINIO
+}
+
+enum ArtifactType {
+  FILE
+  EXTERNAL_URL
+}
+
+enum ArtifactProvider {
+  LOCAL
+  OBJECT_STORAGE
+  GOOGLE_DRIVE
+  SHAREPOINT
+  ONEDRIVE
+  GITHUB
+  GENERIC_URL
+}
+
+enum ArtifactRelationType {
+  ATTACHMENT
+  PROPOSAL
+  CONTRACT
+  TECHNICAL_DOCUMENT
+  MEETING_MINUTES
+  SCREENSHOT
+  EVIDENCE
+  REFERENCE
+  OTHER
+}
+
+enum ActivityTargetType {
+  COMPANY
+  TASK
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskReviewStatus {
+  NOT_REQUIRED
+  DRAFT
+  PENDING_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+}
+
+enum TaskReviewDecision {
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
+  CANCELLED
+}
+
+enum TaskAssignmentScope {
+  SELF
+  TEAM
+  ORGANIZATION
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum MeetingMode {
+  IN_PERSON
+  ONLINE
+  HYBRID
+}
+
+enum PricingCurrency {
+  IRR
+  USD
+}
+
+enum SalesChannel {
+  LEGACY_UNKNOWN
+  IN_PERSON
+  DIGIKALA
+  OTHER
+}
+
+enum ProductPriceHistoryReason {
+  MIGRATION_BASELINE
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  EXCHANGE_RATE_CHANGED
+  MANUAL_RECALCULATION
+}
+
+enum NotificationType {
+  SYSTEM
+  TASK_CREATED
+  TASK_ASSIGNED
+  TASK_STATUS_CHANGED
+  TASK_COMPLETED
+  TASK_RESCHEDULED
+  OPPORTUNITY_UPDATED
+  COMMERCIAL_DOCUMENT_UPDATED
+  PAYMENT_UPDATED
+  ATTACHMENT_UPLOADED
+  MEETING_REMINDER
+  TENDER_WORKFLOW
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum NotificationEntityType {
+  TASK
+  COMPANY
+  PERSON
+  OPPORTUNITY
+  COMMERCIAL_DOCUMENT
+  PAYMENT
+  ATTACHMENT
+  MEETING
+  TENDER
+}
+
+enum OrganizationStatus {
+  PENDING_SETUP
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum OrganizationOnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  READY
+  FAILED
+}
+
+enum OrganizationMembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum OrganizationCalendarSystem {
+  GREGORIAN
+  PERSIAN
+}
+
+enum OrganizationDateFormat {
+  YYYY_MM_DD
+  DD_MM_YYYY
+  MM_DD_YYYY
+}
+
+enum OrganizationDomainType {
+  SUBDOMAIN
+  CUSTOM
+}
+
+enum OrganizationDomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  DISABLED
+}
+
+enum OrganizationDomainVerificationMethod {
+  DNS_TXT
+}
+
+enum ConversationEntityType {
+  COMPANY
+  TASK
+  ACTIVITY
+}
+
+enum ConversationMessageType {
+  COMMENT
+  QUESTION
+  ANSWER
+}
+
+enum ConversationThreadStatus {
+  OPEN
+  RESOLVED
+}
+
+// ============================================================
+// Users & Auth
+// ============================================================
+
+model User {
+  id                    String                     @id @default(uuid())
+  fullName              String
+  email                 String                     @unique
+  passwordHash          String
+  role                  UserRole                   @default(REP)
+  roleId                String?
+  assignedRole          Role?                      @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  team                  String?
+  teamId                String?
+  teamRef               Team?                      @relation("UserPrimaryTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  isActive              Boolean                    @default(true)
+  avatarStorageProvider AttachmentStorageProvider?
+  avatarBucket          String?
+  avatarObjectKey       String?
+  avatarStoragePath     String?
+  avatarMimeType        String?
+  avatarOriginalName    String?
+
+  organizationId String       @default("00000000-0000-4000-8000-000000000001")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  passwordChangedAt   DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownedCompanies          Company[]                 @relation("CompanyOwner")
+  archivedCompanies       Company[]                 @relation("CompanyArchivedBy")
+  ownedOpportunities      Opportunity[]             @relation("OpportunityOwner")
+  archivedOpportunities   Opportunity[]             @relation("OpportunityArchivedBy")
+  opportunityStageChanges OpportunityStageHistory[]
+  activities              Activity[]
+  completedActivities     Activity[]                @relation("ActivityCompletedBy")
+  stageChangesMade        PipelineStageHistory[]
+  passkeys                UserPasskey[]
+  externalIdentities      ExternalIdentity[]
+  ssoLoginTickets         SsoLoginTicket[]
+  refreshSessions         RefreshSession[]
+
+  assignedTasks        Task[]            @relation("TaskAssignedTo")
+  createdTasks         Task[]            @relation("TaskCreatedBy")
+  completedTasks       Task[]            @relation("TaskCompletedBy")
+  tasksToReview        Task[]            @relation("TaskReviewer")
+  taskReviewsAssigned  TaskReviewRound[] @relation("TaskReviewReviewer")
+  taskReviewsSubmitted TaskReviewRound[] @relation("TaskReviewSubmittedBy")
+
+  organizedMeetings      Meeting[]              @relation("MeetingOrganizer")
+  createdMeetings        Meeting[]              @relation("MeetingCreatedBy")
+  completedMeetings      Meeting[]              @relation("MeetingCompletedBy")
+  cancelledMeetings      Meeting[]              @relation("MeetingCancelledBy")
+  meetingAssignments     MeetingAssignee[]      @relation("MeetingAssignedUser")
+  meetingAssignmentsMade MeetingAssignee[]      @relation("MeetingAssignedBy")
+  exchangeRatesCreated   CurrencyExchangeRate[] @relation("ExchangeRateCreatedBy")
+  productPriceChanges    ProductPriceHistory[]  @relation("ProductPriceHistoryChangedBy")
+
+  notifications                     Notification[]             @relation("NotificationRecipient")
+  notificationActions               Notification[]             @relation("NotificationActor")
+  managedTeams                      Team[]                     @relation("TeamManager")
+  organizationMemberships           OrganizationMembership[]
+  technicalReleasesCreated          TechnicalRelease[]         @relation("TechnicalReleaseCreatedBy")
+  technicalReleasesUpdated          TechnicalRelease[]         @relation("TechnicalReleaseUpdatedBy")
+  knowledgeArticlesOwned            KnowledgeBaseArticle[]     @relation("KnowledgeArticleOwner")
+  knowledgeArticlesAuthored         KnowledgeBaseArticle[]     @relation("KnowledgeArticleAuthor")
+  knowledgeArticlesReviewed         KnowledgeBaseArticle[]     @relation("KnowledgeArticleReviewer")
+  technicalDocumentsOwned           TechnicalDocument[]        @relation("TechnicalDocumentOwner")
+  technicalDocumentsCreated         TechnicalDocument[]        @relation("TechnicalDocumentCreatedBy")
+  technicalDocumentsUpdated         TechnicalDocument[]        @relation("TechnicalDocumentUpdatedBy")
+  technicalDocumentVersionsCreated  TechnicalDocumentVersion[] @relation("TechnicalDocumentVersionCreatedBy")
+  technicalDocumentVersionsApproved TechnicalDocumentVersion[] @relation("TechnicalDocumentVersionApprovedBy")
+  technicalResourcesOwned           TechnicalResource[]        @relation("TechnicalResourceOwner")
+  technicalResourcesCreated         TechnicalResource[]        @relation("TechnicalResourceCreatedBy")
+  technicalResourcesUpdated         TechnicalResource[]        @relation("TechnicalResourceUpdatedBy")
+  technicalTendersOwned             Tender[]                   @relation("TechnicalTenderOwner")
+  technicalTendersLed               Tender[]                   @relation("TechnicalTenderTechnicalLead")
+  commercialTendersLed              Tender[]                   @relation("TechnicalTenderCommercialLead")
+  technicalTendersSubmitted         Tender[]                   @relation("TechnicalTenderSubmittedBy")
+  technicalTendersClosed            Tender[]                   @relation("TechnicalTenderClosedBy")
+  technicalTendersCreated           Tender[]                   @relation("TechnicalTenderCreatedBy")
+  technicalTendersUpdated           Tender[]                   @relation("TechnicalTenderUpdatedBy")
+  tenderRequirementsOwned           TenderRequirement[]        @relation("TenderRequirementOwner")
+  tenderRequirementsBlocked         TenderRequirement[]        @relation("TenderRequirementBlockedBy")
+  tenderReviewsAssigned             TenderReview[]             @relation("TenderReviewReviewer")
+  tenderReviewsRequested            TenderReview[]             @relation("TenderReviewRequestedBy")
+  tenderReviewsDecided              TenderReview[]             @relation("TenderReviewDecidedBy")
+  artifactsUploaded                 FileAttachment[]           @relation("ArtifactUploadedBy")
+  artifactsDeleted                  FileAttachment[]           @relation("ArtifactDeletedBy")
+  artifactLinksCreated              ArtifactLink[]             @relation("ArtifactLinkCreatedBy")
+  taskReviewArtifactsAdded          TaskReviewArtifact[]       @relation("TaskReviewArtifactAddedBy")
+  platformAuthority                 PlatformAuthority?
+
+  notificationCoreEventActions  NotificationEvent[]           @relation("NotificationCoreEventActor")
+  notificationCoreDeliveries    NotificationDelivery[]        @relation("NotificationCoreDeliveryRecipient")
+  notificationRetriesRequested  NotificationDelivery[]        @relation("NotificationDeliveryRetryRequestedBy")
+  notificationAttemptsTriggered NotificationDeliveryAttempt[] @relation("NotificationDeliveryAttemptTriggeredBy")
+  notificationCorePreferences   NotificationPreference[]      @relation("NotificationCorePreferences")
+  notificationPushEndpoints     NotificationPushEndpoint[]
+  conversationThreadsCreated    ConversationThread[]          @relation("ConversationThreadCreatedBy")
+  conversationMessagesAuthored  ConversationMessage[]         @relation("ConversationMessageAuthor")
+  conversationMessagesDeleted   ConversationMessage[]         @relation("ConversationMessageDeletedBy")
+  conversationParticipants      ConversationParticipant[]
+
+  @@index([organizationId])
+  @@index([teamId])
+  @@index([roleId])
+  @@map("users")
+}
+
+model Team {
+  id          String  @id @default(uuid())
+  code        String
+  name        String
+  description String?
+
+  managerId String?
+  manager   User?   @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  members                 User[]                   @relation("UserPrimaryTeam")
+  organizationMemberships OrganizationMembership[]
+  technicalTenders        Tender[]
+  tasks                   Task[]
+
+  @@unique([organizationId, code])
+  @@index([managerId])
+  @@index([isActive])
+  @@index([organizationId])
+  @@map("teams")
+}
+
+model Organization {
+  id String @id @default(uuid())
+
+  code String @unique
+  name String
+
+  status           OrganizationStatus           @default(ACTIVE)
+  onboardingStatus OrganizationOnboardingStatus @default(NOT_STARTED)
+
+  onboardingStartedAt      DateTime?
+  onboardingCompletedAt    DateTime?
+  onboardingLastAttemptAt  DateTime?
+  onboardingFailureCode    String?
+  onboardingFailureMessage String?
+
+  timezone String @default("Asia/Tehran")
+  locale   String @default("fa-IR")
+
+  settings             Json?
+  authorizationVersion Int   @default(1)
+  entitlementVersion   Int   @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                User[]
+  teams                Team[]
+  companies            Company[]
+  opportunities        Opportunity[]
+  tasks                Task[]
+  notifications        Notification[]
+  fileAttachments      FileAttachment[]
+  artifactLinks        ArtifactLink[]
+  taskReviewRounds     TaskReviewRound[]
+  auditLogs            AuditLog[]
+  meetings             Meeting[]
+  conversationThreads  ConversationThread[]
+  conversationMessages ConversationMessage[]
+  memberships          OrganizationMembership[]
+  ssoProviders         SsoProvider[]
+  ssoRoutes            SsoProviderRoute[]
+  ssoAuthTransactions  SsoAuthTransaction[]
+  tenantSettings       OrganizationSettings?
+  branding             OrganizationBranding?
+  domains              OrganizationDomain[]
+  tenantRoles          Role[]                      @relation("TenantRoles")
+  subscriptions        Subscription[]
+  entitlements         OrganizationEntitlement[]
+  quotaOverrides       OrganizationQuotaOverride[]
+  usageCounters        UsageCounter[]
+  usageSnapshots       UsageSnapshot[]
+  quotaThresholds      QuotaThresholdEvent[]
+  usageReservations    UsageReservation[]
+  usageEvents          UsageEvent[]
+  technicalReleases    TechnicalRelease[]
+  knowledgeArticles    KnowledgeBaseArticle[]
+  technicalDocuments   TechnicalDocument[]
+  technicalResources   TechnicalResource[]
+  tenders              Tender[]
+  tenderReviews        TenderReview[]
+
+  notificationCoreEvents       NotificationEvent[]            @relation("NotificationCoreEvents")
+  notificationCoreRules        NotificationRule[]             @relation("NotificationCoreRules")
+  notificationSchedules        NotificationSchedule[]         @relation("NotificationSchedules")
+  notificationCoreTemplates    NotificationTemplate[]         @relation("NotificationCoreTemplates")
+  notificationCoreDeliveries   NotificationDelivery[]         @relation("NotificationCoreDeliveryOrganization")
+  notificationDeliveryAttempts NotificationDeliveryAttempt[]  @relation("NotificationDeliveryAttemptOrganization")
+  notificationCorePreferences  NotificationPreference[]       @relation("NotificationCorePreferences")
+  notificationSmsSettings      NotificationSmsSettings?
+  notificationPushSettings     NotificationPushSettings?
+  notificationPushEndpoints    NotificationPushEndpoint[]
+  notificationQuietHours       NotificationQuietHoursPolicy?
+  notificationDigestPolicies   NotificationDigestPolicy[]
+  notificationDigestBuckets    NotificationDigestBucket[]
+  notificationEscalations      NotificationEscalationPolicy[]
+  notificationEscalationRuns   NotificationEscalationRun[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("organizations")
+}
+
+model OrganizationSettings {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  timezone               String                     @default("Asia/Tehran")
+  locale                 String                     @default("fa-IR")
+  calendarSystem         OrganizationCalendarSystem @default(PERSIAN)
+  dateFormat             OrganizationDateFormat     @default(YYYY_MM_DD)
+  firstDayOfWeek         Int                        @default(6)
+  emailSenderDisplayName String?
+  smtpEnabled            Boolean                    @default(false)
+  smtpHost               String?
+  smtpPort               Int?
+  smtpSecure             Boolean                    @default(true)
+  smtpUsername           String?
+  smtpPasswordEnc        String?
+  smtpFromEmail          String?
+  smtpFromName           String?
+  smtpReplyTo            String?
+  allowPasswordLogin     Boolean                    @default(true)
+  allowPasskeyLogin      Boolean                    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("organization_settings")
+}
+
+model OrganizationBranding {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  displayTitle        String?
+  primaryColor        String?
+  secondaryColor      String?
+  accentColor         String?
+  logoAttachmentId    String?
+  faviconAttachmentId String?
+  logoAttachment      FileAttachment? @relation("OrganizationBrandingLogo", fields: [logoAttachmentId], references: [id], onDelete: SetNull)
+  faviconAttachment   FileAttachment? @relation("OrganizationBrandingFavicon", fields: [faviconAttachmentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([logoAttachmentId])
+  @@index([faviconAttachmentId])
+  @@map("organization_branding")
+}
+
+model OrganizationDomain {
+  id                    String                               @id @default(uuid())
+  organizationId        String
+  organization          Organization                         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type                  OrganizationDomainType
+  hostname              String                               @unique
+  subdomainLabel        String?                              @unique
+  status                OrganizationDomainStatus             @default(PENDING)
+  verificationMethod    OrganizationDomainVerificationMethod @default(DNS_TXT)
+  verificationTokenHash String
+  verifiedAt            DateTime?
+  lastCheckedAt         DateTime?
+  failureCode           String?
+  createdAt             DateTime                             @default(now())
+  updatedAt             DateTime                             @updatedAt
+
+  @@index([organizationId, status])
+  @@index([status, hostname])
+  @@map("organization_domains")
+}
+
+model UserPasskey {
+  id                   String    @id @default(uuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId         String    @unique
+  credentialPublicKey  Bytes
+  counter              Int       @default(0)
+  deviceName           String?
+  transports           String[]
+  backedUp             Boolean   @default(false)
+  credentialDeviceType String?
+  lastUsedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("user_passkeys")
+}
+
+model SsoProvider {
+  id       String          @id @default(uuid())
+  name     String
+  type     SsoProviderType
+  isActive Boolean         @default(true)
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  normalizedName String?
+
+  autoProvision  Boolean   @default(false)
+  defaultRole    UserRole?
+  allowedDomains String[]  @default([])
+
+  // OIDC configuration
+  issuer           String?
+  clientId         String?
+  clientSecretEnc  String?
+  authorizationUrl String?
+  tokenUrl         String?
+  userInfoUrl      String?
+  jwksUrl          String?
+  scopes           String[] @default(["openid", "profile", "email"])
+
+  // SAML configuration
+  entityId             String?
+  ssoUrl               String?
+  x509Certificate      String?
+  signRequests         Boolean @default(false)
+  wantAssertionsSigned Boolean @default(true)
+  wantResponseSigned   Boolean @default(false)
+
+  // Attribute mapping
+  emailAttribute  String?
+  nameAttribute   String?
+  groupsAttribute String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  externalIdentities ExternalIdentity[]
+  loginTickets       SsoLoginTicket[]
+  routes             SsoProviderRoute[]
+  groupRoleMappings  SsoGroupRoleMapping[]
+  authTransactions   SsoAuthTransaction[]
+
+  @@unique([organizationId, type, normalizedName])
+  @@unique([organizationId, issuer])
+  @@unique([organizationId, clientId])
+  @@unique([organizationId, entityId])
+  @@index([type])
+  @@index([isActive])
+  @@index([organizationId, isActive])
+  @@map("sso_providers")
+}
+
+model SsoProviderRoute {
+  id             String         @id @default(uuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  providerId     String
+  provider       SsoProvider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  kind           SsoRoutingKind
+  value          String
+  createdAt      DateTime       @default(now())
+
+  @@unique([kind, value])
+  @@unique([providerId, kind, value])
+  @@index([organizationId])
+  @@index([providerId])
+  @@map("sso_provider_routes")
+}
+
+model SsoGroupRoleMapping {
+  id              String      @id @default(uuid())
+  providerId      String
+  provider        SsoProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  normalizedGroup String
+  roleId          String
+  role            Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([providerId, normalizedGroup])
+  @@index([roleId])
+  @@map("sso_group_role_mappings")
+}
+
+model SsoAuthTransaction {
+  id              String       @id @default(uuid())
+  stateHash       String       @unique
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  providerId      String
+  provider        SsoProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  nonceEnc        String?
+  pkceVerifierEnc String?
+  redirectTarget  String
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([providerId, expiresAt])
+  @@index([organizationId, expiresAt])
+  @@index([consumedAt])
+  @@map("sso_auth_transactions")
+}
+
+model ExternalIdentity {
+  id         String @id @default(uuid())
+  userId     String
+  providerId String
+
+  subject String
+  email   String?
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider SsoProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([providerId, subject])
+  @@index([userId])
+  @@index([email])
+  @@map("external_identities")
+}
+
+model SsoLoginTicket {
+  id         String @id @default(uuid())
+  ticketHash String @unique
+
+  userId     String
+  providerId String?
+
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider SsoProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([providerId])
+  @@index([expiresAt])
+  @@index([consumedAt])
+  @@map("sso_login_tickets")
+}
+
+model RefreshSession {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshTokenHash String @unique
+
+  userAgent String?
+  ipAddress String?
+
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  expiresAt  DateTime
+
+  revokedAt           DateTime?
+  revokedReason       String?
+  replacedBySessionId String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([userId, revokedAt, expiresAt])
+  @@map("refresh_sessions")
+}
+
+// ============================================================
+// Company
+// ============================================================
+
+model Company {
+  id       String @id @default(uuid())
+  leadCode String @unique @default(uuid())
+
+  legalName           String
+  brandName           String?
+  registrationNo      String?
+  registrationNumber  String?
+  nationalId          String?
+  economicCode        String?
+  establishmentDate   DateTime?
+  foundedYear         Int?
+  companyType         String?
+  ownership           CompanyOwnership?
+  activityStatus      CompanyActivityStatus      @default(UNKNOWN)
+  activityGroup       String?
+  marketSize          String?
+  logoStorageProvider AttachmentStorageProvider?
+  logoBucket          String?
+  logoObjectKey       String?
+  logoStoragePath     String?
+  logoMimeType        String?
+  logoOriginalName    String?
+
+  industryId  String?
+  industryRef Industry? @relation("CompanyIndustry", fields: [industryId], references: [id], onDelete: SetNull)
+
+  // Deprecated compatibility snapshot. New writes should resolve from Industry.
+  industry String?
+
+  parentCompanyId     String?
+  parentCompany       Company?                   @relation("CompanyHierarchy", fields: [parentCompanyId], references: [id])
+  subsidiaries        Company[]                  @relation("CompanyHierarchy")
+  parentRelations     CompanyHierarchyRelation[] @relation("CompanyHierarchyParent")
+  subsidiaryRelations CompanyHierarchyRelation[] @relation("CompanyHierarchySubsidiary")
+
+  website            String?
+  publicEmail        String?
+  headOfficeProvince String?
+  headOfficeCity     String?
+  headOfficeAddress  String?
+  postalCode         String?
+  centralPhone       String?
+
+  registeredCapital Decimal? @db.Decimal(24, 2)
+  employeeCount     Int?
+  annualRevenue     BigInt?
+
+  ownerId String?
+  owner   User?   @relation("CompanyOwner", fields: [ownerId], references: [id])
+
+  // Deprecated pipeline compatibility fields. New sales flows belong to Opportunity.
+  priority Priority            @default(MEDIUM)
+  stage    LegacyPipelineStage @default(LEAD)
+
+  sourceId  String?
+  sourceRef LeadSource? @relation("CompanyLeadSource", fields: [sourceId], references: [id], onDelete: SetNull)
+
+  // Deprecated compatibility snapshot. New writes should resolve from LeadSource.
+  source         String?   @default("SAM_LIST")
+  nextActionDate DateTime?
+
+  archivedAt    DateTime?
+  archivedById  String?
+  archivedBy    User?     @relation("CompanyArchivedBy", fields: [archivedById], references: [id])
+  archiveReason String?
+
+  researchCompletion Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches                CompanyBranch[]
+  socialChannels          CompanySocialChannel[]
+  people                  Person[]
+  activities              Activity[]
+  callCard                CallCard?
+  stageHistory            PipelineStageHistory[]
+  opportunities           Opportunity[]
+  tasks                   Task[]
+  legalDocuments          CompanyLegalDocument[]
+  personEmploymentHistory PersonEmploymentHistory[]
+  meetings                Meeting[]
+  technicalDocuments      TechnicalDocument[]
+  tenders                 Tender[]
+
+  organizationId String       @default("00000000-0000-4000-8000-000000000001")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([ownerId])
+  @@index([industryId])
+  @@index([sourceId])
+  @@index([stage])
+  @@index([priority])
+  @@index([industry])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([archivedAt])
+  @@index([ownerId, stage])
+  @@index([stage, priority])
+  @@index([organizationId])
+  @@index([organizationId, ownerId])
+  @@map("companies")
+}
+
+model CompanyHierarchyRelation {
+  id                  String   @id @default(uuid())
+  parentCompanyId     String
+  subsidiaryCompanyId String
+  parentCompany       Company  @relation("CompanyHierarchyParent", fields: [parentCompanyId], references: [id], onDelete: Cascade)
+  subsidiaryCompany   Company  @relation("CompanyHierarchySubsidiary", fields: [subsidiaryCompanyId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([parentCompanyId, subsidiaryCompanyId])
+  @@index([subsidiaryCompanyId])
+  @@map("company_hierarchy_relations")
+}
+
+model CompanyLegalDocument {
+  id           String                   @id @default(uuid())
+  companyId    String
+  company      Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type         CompanyLegalDocumentType
+  title        String
+  description  String?
+  documentDate DateTime?
+  attachmentId String?                  @unique
+  createdById  String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([companyId, type])
+  @@map("company_legal_documents")
+}
+
+// ============================================================
+// Company Branch
+// ============================================================
+
+model CompanyBranch {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name    String?
+  city    String?
+  address String?
+  phone   String?
+
+  @@index([companyId])
+  @@map("company_branches")
+}
+
+// ============================================================
+// Company Social Channel
+// ============================================================
+
+model CompanySocialChannel {
+  id        String         @id @default(uuid())
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  platform  SocialPlatform
+  handle    String
+
+  @@index([companyId])
+  @@index([platform])
+  @@map("company_social_channels")
+}
+
+// ============================================================
+// Person (مخاطب)
+// ============================================================
+
+model Person {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  fullName       String
+  title          String?
+  department     String?
+  seniorityLevel String?
+  personaTag     String?
+  tenureInRole   String?
+  expertiseArea  String?
+  linkedinActive Boolean?
+  bestChannel    String?
+
+  isPrimaryContact   Boolean @default(false)
+  isSecondaryContact Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // فیلدهای قدیمی (برای سازگاری)
+  linkedinUrl String?
+  email       String?
+  phone       String?
+
+  contacts           PersonContact[]
+  socials            PersonSocial[]
+  tasks              Task[]
+  employmentHistory  PersonEmploymentHistory[]
+  educationHistory   PersonEducationHistory[]
+  meetingAttendances MeetingAttendee[]
+
+  activities           Activity[]
+  primaryOpportunities Opportunity[] @relation("OpportunityPrimaryContact")
+
+  @@index([companyId])
+  @@index([personaTag])
+  @@index([isPrimaryContact])
+  @@map("people")
+}
+
+model PersonEmploymentHistory {
+  id                  String                     @id @default(uuid())
+  personId            String
+  person              Person                     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  companyId           String
+  company             Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  companyNameSnapshot String?
+  description         String?
+  positions           PersonEmploymentPosition[]
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  @@unique([personId, companyId])
+  @@index([companyId])
+  @@map("person_employment_history")
+}
+
+model PersonEmploymentPosition {
+  id                  String                  @id @default(uuid())
+  employmentHistoryId String
+  employmentHistory   PersonEmploymentHistory @relation(fields: [employmentHistoryId], references: [id], onDelete: Cascade)
+  title               String
+  startDate           DateTime?
+  endDate             DateTime?
+  isCurrent           Boolean                 @default(false)
+  description         String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([employmentHistoryId])
+  @@map("person_employment_positions")
+}
+
+model PersonEducationHistory {
+  id                     String                 @id @default(uuid())
+  personId               String
+  person                 Person                 @relation(fields: [personId], references: [id], onDelete: Cascade)
+  degree                 PersonEducationDegree?
+  degreeNameSnapshot     String?
+  universityId           String?
+  university             University?            @relation(fields: [universityId], references: [id], onDelete: SetNull)
+  universityNameSnapshot String?
+  educationDate          DateTime?
+  description            String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([personId])
+  @@index([universityId])
+  @@map("person_education_history")
+}
+
+model University {
+  id               String                   @id @default(uuid())
+  name             String                   @unique
+  code             String?                  @unique
+  isActive         Boolean                  @default(true)
+  description      String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  educationHistory PersonEducationHistory[]
+
+  @@index([isActive])
+  @@map("universities")
+}
+
+// ============================================================
+// Person Contact (اطلاعات تماس)
+// ============================================================
+
+model PersonContact {
+  id       String @id @default(uuid())
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  typeOptionId String?
+  typeOption   LookupOption? @relation("PersonContactTypeOption", fields: [typeOptionId], references: [id], onDelete: SetNull)
+
+  // Deprecated compatibility snapshot. New writes should resolve from LookupOption(group = contact_types).
+  type String
+
+  value     String
+  isPrimary Boolean @default(false)
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([personId, type, value])
+  @@index([personId])
+  @@index([type])
+  @@index([typeOptionId])
+  @@map("person_contacts")
+}
+
+// ============================================================
+// Person Social (شبکه‌های اجتماعی)
+// ============================================================
+
+model PersonSocial {
+  id       String @id @default(uuid())
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  platformOptionId String?
+  platformOption   LookupOption? @relation("PersonSocialPlatformOption", fields: [platformOptionId], references: [id], onDelete: SetNull)
+
+  // Deprecated compatibility snapshot. New writes should resolve from LookupOption(group = social_types).
+  platform String
+
+  handle    String
+  isPrimary Boolean @default(false)
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([personId, platform, handle])
+  @@index([personId])
+  @@index([platform])
+  @@index([platformOptionId])
+  @@map("person_socials")
+}
+
+// ============================================================
+// Activity (فعالیت‌ها)
+// ============================================================
+
+model Activity {
+  id         String             @id @default(uuid())
+  targetType ActivityTargetType @default(COMPANY)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  taskId   String?
+  task     Task?   @relation("TaskActivities", fields: [taskId], references: [id], onDelete: SetNull)
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id])
+  userId   String
+  user     User    @relation(fields: [userId], references: [id])
+
+  type           String
+  notes          String?
+  outcome        String?
+  occurredAt     DateTime     @default(now())
+  nextActionDate DateTime?
+  completedAt    DateTime?
+  completedById  String?
+  completedBy    User?        @relation("ActivityCompletedBy", fields: [completedById], references: [id])
+  completionNote String?
+  opportunityId  String?
+  opportunity    Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  tasks          Task[]       @relation("LegacyTaskActivity")
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([nextActionDate])
+  @@index([completedAt])
+  @@index([type])
+  @@index([occurredAt])
+  @@index([userId, nextActionDate])
+  @@index([companyId, occurredAt])
+  @@index([opportunityId])
+  @@index([targetType])
+  @@index([taskId])
+  @@index([taskId, occurredAt])
+  @@map("activities")
+}
+
+model Opportunity {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  ownerId String?
+  owner   User?   @relation("OpportunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+
+  stageId  String
+  stage    PipelineStage @relation(fields: [stageId], references: [id])
+  priority Priority      @default(MEDIUM)
+
+  estimatedValue    Decimal?  @db.Decimal(18, 2)
+  expectedCloseDate DateTime?
+
+  sourceOptionId String?
+  sourceOption   LookupOption? @relation("OpportunitySourceOption", fields: [sourceOptionId], references: [id], onDelete: SetNull)
+
+  // Backward-compatible snapshot. New writes should prefer sourceOptionId/opportunitySource.
+  source String?
+
+  primaryContactId String?
+  primaryContact   Person? @relation("OpportunityPrimaryContact", fields: [primaryContactId], references: [id], onDelete: SetNull)
+
+  probability Int?
+  competitor  String?
+  lostReason  String?
+  wonAt       DateTime?
+  lostAt      DateTime?
+
+  archivedAt    DateTime?
+  archivedById  String?
+  archivedBy    User?     @relation("OpportunityArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
+  archiveReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stageHistories      OpportunityStageHistory[]
+  activities          Activity[]
+  lineItems           OpportunityLineItem[]
+  commercialDocuments OpportunityCommercialDocument[]
+  payments            OpportunityPayment[]
+  tasks               Task[]
+  meetings            Meeting[]
+  technicalDocuments  TechnicalDocument[]
+  tenders             Tender[]
+  organizationId      String                          @default("00000000-0000-4000-8000-000000000001")
+  organization        Organization                    @relation(fields: [organizationId], references: [id])
+
+  @@index([companyId])
+  @@index([ownerId])
+  @@index([stageId])
+  @@index([priority])
+  @@index([sourceOptionId])
+  @@index([primaryContactId])
+  @@index([expectedCloseDate])
+  @@index([archivedAt])
+  @@index([ownerId, stageId])
+  @@index([organizationId])
+  @@index([organizationId, ownerId])
+  @@index([organizationId, stageId])
+  @@index([organizationId, sourceOptionId])
+  @@map("opportunities")
+}
+
+model OpportunityCommercialDocument {
+  id            String      @id @default(uuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  type   CommercialDocumentType
+  status CommercialDocumentStatus @default(DRAFT)
+
+  number  String?
+  version Int     @default(1)
+
+  title       String
+  description String?
+
+  amount   Decimal? @db.Decimal(18, 2)
+  currency String   @default("IRR")
+
+  validUntil DateTime?
+  issuedAt   DateTime?
+  sentAt     DateTime?
+  acceptedAt DateTime?
+  rejectedAt DateTime?
+  signedAt   DateTime?
+
+  fileUrl     String?
+  externalRef String?
+  notes       String?
+
+  createdById String?
+  updatedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments OpportunityPayment[]
+  tasks    Task[]
+
+  @@index([opportunityId])
+  @@index([type])
+  @@index([status])
+  @@index([number])
+  @@index([createdAt])
+  @@map("opportunity_commercial_documents")
+}
+
+model OpportunityPayment {
+  id            String      @id @default(uuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  commercialDocumentId String?
+  commercialDocument   OpportunityCommercialDocument? @relation(fields: [commercialDocumentId], references: [id], onDelete: SetNull)
+
+  status PaymentStatus @default(PENDING)
+
+  amount   Decimal @db.Decimal(18, 2)
+  currency String  @default("IRR")
+
+  dueDate DateTime?
+  paidAt  DateTime?
+
+  method          PaymentMethod?
+  referenceNumber String?
+  description     String?
+  notes           String?
+
+  createdById String?
+  updatedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks Task[]
+
+  @@index([opportunityId])
+  @@index([commercialDocumentId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([paidAt])
+  @@map("opportunity_payments")
+}
+
+enum ProductType {
+  HARDWARE
+  SOFTWARE
+}
+
+model ProductCatalogItem {
+  id                       String                @id @default(uuid())
+  code                     String                @unique
+  type                     ProductType           @default(HARDWARE)
+  digikalaCode             String?               @unique
+  digikalaUrl              String?
+  name                     String
+  description              String?
+  category                 String?
+  unit                     String?
+  defaultUnitPrice         Decimal               @default(0) @db.Decimal(18, 2)
+  currency                 String                @default("IRR")
+  pricingCurrency          PricingCurrency       @default(IRR)
+  inPersonInputPrice       Decimal               @default(0) @db.Decimal(24, 6)
+  digikalaInputPrice       Decimal               @default(0) @db.Decimal(24, 6)
+  inPersonProfitPercent    Decimal?              @db.Decimal(7, 3)
+  digikalaProfitPercent    Decimal?              @db.Decimal(7, 3)
+  inPersonPriceIrr         Decimal               @default(0) @db.Decimal(24, 0)
+  digikalaPriceIrr         Decimal               @default(0) @db.Decimal(24, 0)
+  calculatedExchangeRateId String?
+  calculatedExchangeRate   CurrencyExchangeRate? @relation(fields: [calculatedExchangeRateId], references: [id], onDelete: SetNull)
+  priceCalculatedAt        DateTime?
+  isActive                 Boolean               @default(true)
+  sortOrder                Int                   @default(0)
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+
+  lineItems          OpportunityLineItem[]
+  priceHistory       ProductPriceHistory[]
+  technicalReleases  TechnicalRelease[]
+  knowledgeArticles  KnowledgeBaseArticle[]
+  technicalDocuments TechnicalDocument[]
+  technicalResources TechnicalResource[]
+  tasks              Task[]
+
+  @@index([isActive, sortOrder])
+  @@index([type, isActive, sortOrder])
+  @@index([category])
+  @@index([pricingCurrency])
+  @@index([calculatedExchangeRateId])
+  @@map("product_catalog_items")
+}
+
+model CurrencyExchangeRate {
+  id                  String                @id @default(uuid())
+  baseCurrency        String                @default("USD")
+  quoteCurrency       String                @default("IRR")
+  rate                Decimal               @db.Decimal(24, 6)
+  validFrom           DateTime
+  validTo             DateTime?
+  createdById         String
+  createdBy           User                  @relation("ExchangeRateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  note                String?
+  createdAt           DateTime              @default(now())
+  products            ProductCatalogItem[]
+  productPriceHistory ProductPriceHistory[]
+
+  @@index([baseCurrency, quoteCurrency, validFrom])
+  @@index([baseCurrency, quoteCurrency, validTo])
+  @@map("currency_exchange_rates")
+}
+
+model OpportunityLineItem {
+  id            String      @id @default(uuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  productId          String?
+  product            ProductCatalogItem? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  tenderRequirements TenderRequirement[]
+
+  productCodeSnapshot String
+  productNameSnapshot String
+
+  description String?
+
+  quantity       Decimal @db.Decimal(18, 2)
+  unitPrice      Decimal @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @db.Decimal(18, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(18, 2)
+  lineTotal      Decimal @db.Decimal(18, 2)
+
+  salesChannel                SalesChannel         @default(IN_PERSON)
+  catalogUnitPriceIrrSnapshot Decimal?             @db.Decimal(24, 0)
+  productPriceHistoryId       String?
+  productPriceHistory         ProductPriceHistory? @relation(fields: [productPriceHistoryId], references: [id], onDelete: SetNull)
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([opportunityId])
+  @@index([productId])
+  @@index([sortOrder])
+  @@index([salesChannel])
+  @@index([productPriceHistoryId])
+  @@index([opportunityId, salesChannel])
+  @@map("opportunity_line_items")
+}
+
+model ProductPriceHistory {
+  id                        String                    @id @default(uuid())
+  productId                 String
+  product                   ProductCatalogItem        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  pricingCurrency           PricingCurrency
+  inPersonInputPrice        Decimal                   @db.Decimal(24, 6)
+  digikalaInputPrice        Decimal                   @db.Decimal(24, 6)
+  inPersonProfitPercent     Decimal?                  @db.Decimal(7, 3)
+  digikalaProfitPercent     Decimal?                  @db.Decimal(7, 3)
+  inPersonPriceIrr          Decimal                   @db.Decimal(24, 0)
+  digikalaPriceIrr          Decimal                   @db.Decimal(24, 0)
+  calculatedExchangeRateId  String?
+  calculatedExchangeRate    CurrencyExchangeRate?     @relation(fields: [calculatedExchangeRateId], references: [id], onDelete: SetNull)
+  exchangeRateValueSnapshot Decimal?                  @db.Decimal(24, 6)
+  reason                    ProductPriceHistoryReason
+  validFrom                 DateTime
+  validTo                   DateTime?
+  changedById               String?
+  changedBy                 User?                     @relation("ProductPriceHistoryChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+  note                      String?
+  createdAt                 DateTime                  @default(now())
+  lineItems                 OpportunityLineItem[]
+
+  @@index([productId, validFrom])
+  @@index([reason, validFrom])
+  @@index([calculatedExchangeRateId])
+  @@index([changedById])
+  @@map("product_price_histories")
+}
+
+model OpportunityStageHistory {
+  id            String      @id @default(uuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  fromStageId String?
+  fromStage   PipelineStage? @relation("OpportunityHistoryFromStage", fields: [fromStageId], references: [id])
+  toStageId   String
+  toStage     PipelineStage  @relation("OpportunityHistoryToStage", fields: [toStageId], references: [id])
+
+  changedById String?
+  changedBy   User?   @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  note      String?
+  changedAt DateTime @default(now())
+
+  @@index([opportunityId])
+  @@index([fromStageId])
+  @@index([toStageId])
+  @@index([changedAt])
+  @@index([opportunityId, changedAt])
+  @@map("opportunity_stage_histories")
+}
+
+model Task {
+  id String @id @default(uuid())
+
+  title       String
+  description String?
+
+  status   TaskStatus @default(TODO)
+  priority Priority   @default(MEDIUM)
+
+  dueAt      DateTime?
+  reminderAt DateTime?
+
+  assignmentScope TaskAssignmentScope @default(SELF)
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  parentTaskId String?
+  parentTask   Task?   @relation("TaskHierarchy", fields: [parentTaskId], references: [id], onDelete: Restrict)
+  subtasks     Task[]  @relation("TaskHierarchy")
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  commercialDocumentId String?
+  commercialDocument   OpportunityCommercialDocument? @relation(fields: [commercialDocumentId], references: [id], onDelete: SetNull)
+
+  paymentId String?
+  payment   OpportunityPayment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  meetingId String?
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  activityId String?
+  activity   Activity?  @relation("LegacyTaskActivity", fields: [activityId], references: [id], onDelete: SetNull)
+  activities Activity[] @relation("TaskActivities")
+
+  productId String?
+  product   ProductCatalogItem? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  assignedToId String?
+  assignedTo   User?   @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  requiresReview Boolean           @default(false)
+  reviewStatus   TaskReviewStatus  @default(NOT_REQUIRED)
+  reviewerId     String?
+  reviewer       User?             @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewRounds   TaskReviewRound[]
+
+  createdById String?
+  createdBy   User?   @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  completedAt    DateTime?
+  completedById  String?
+  completedBy    User?     @relation("TaskCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  completionNote String?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  organizationId    String              @default("00000000-0000-4000-8000-000000000001")
+  organization      Organization        @relation(fields: [organizationId], references: [id])
+  TenderRequirement TenderRequirement[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([dueAt])
+  @@index([reminderAt])
+  @@index([companyId])
+  @@index([personId])
+  @@index([opportunityId])
+  @@index([commercialDocumentId])
+  @@index([paymentId])
+  @@index([meetingId])
+  @@index([activityId])
+  @@index([productId])
+  @@index([teamId])
+  @@index([parentTaskId])
+  @@index([organizationId, assignmentScope, status, dueAt])
+  @@index([organizationId, teamId, status, dueAt])
+  @@index([assignedToId])
+  @@index([organizationId, reviewStatus, reviewerId])
+  @@index([reviewerId])
+  @@index([createdById])
+  @@index([completedAt])
+  @@index([assignedToId, status, dueAt])
+  @@index([organizationId])
+  @@index([organizationId, assignedToId, status, dueAt])
+  @@map("tasks")
+}
+
+model ConversationThread {
+  id             String                    @id @default(uuid())
+  organizationId String
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entityType     ConversationEntityType
+  entityId       String
+  status         ConversationThreadStatus  @default(OPEN)
+  createdById    String
+  createdBy      User                      @relation("ConversationThreadCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  messages       ConversationMessage[]
+  participants   ConversationParticipant[]
+
+  @@unique([organizationId, entityType, entityId])
+  @@index([organizationId, status, updatedAt])
+  @@index([createdById])
+  @@map("conversation_threads")
+}
+
+model ConversationMessage {
+  id              String                  @id @default(uuid())
+  organizationId  String
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  threadId        String
+  thread          ConversationThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User                    @relation("ConversationMessageAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  parentMessageId String?
+  parentMessage   ConversationMessage?    @relation("ConversationMessageReplies", fields: [parentMessageId], references: [id], onDelete: Restrict)
+  replies         ConversationMessage[]   @relation("ConversationMessageReplies")
+  type            ConversationMessageType @default(COMMENT)
+  body            String
+  editedAt        DateTime?
+  deletedAt       DateTime?
+  deletedById     String?
+  deletedBy       User?                   @relation("ConversationMessageDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@index([organizationId, threadId, createdAt])
+  @@index([parentMessageId])
+  @@index([authorId])
+  @@map("conversation_messages")
+}
+
+model ConversationParticipant {
+  threadId   String
+  thread     ConversationThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime?
+  createdAt  DateTime           @default(now())
+
+  @@id([threadId, userId])
+  @@index([userId, lastReadAt])
+  @@map("conversation_participants")
+}
+
+model TaskReviewRound {
+  id             String               @id @default(uuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  taskId         String
+  task           Task                 @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  roundNumber    Int
+  reviewerId     String
+  reviewer       User                 @relation("TaskReviewReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  submittedById  String
+  submittedBy    User                 @relation("TaskReviewSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  submittedAt    DateTime             @default(now())
+  submissionNote String?
+  decision       TaskReviewDecision   @default(PENDING)
+  reviewedAt     DateTime?
+  reviewComment  String?
+  artifacts      TaskReviewArtifact[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([taskId, roundNumber])
+  @@index([organizationId, reviewerId, decision, submittedAt])
+  @@index([taskId, submittedAt])
+  @@map("task_review_rounds")
+}
+
+model TaskReviewArtifact {
+  id            String          @id @default(uuid())
+  reviewRoundId String
+  reviewRound   TaskReviewRound @relation(fields: [reviewRoundId], references: [id], onDelete: Cascade)
+  artifactId    String
+  artifact      FileAttachment  @relation(fields: [artifactId], references: [id], onDelete: Restrict)
+  addedById     String?
+  addedBy       User?           @relation("TaskReviewArtifactAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime        @default(now())
+
+  @@unique([reviewRoundId, artifactId])
+  @@index([artifactId])
+  @@map("task_review_artifacts")
+}
+
+model Meeting {
+  id                 String            @id @default(uuid())
+  organizationId     String
+  organization       Organization      @relation(fields: [organizationId], references: [id])
+  companyId          String
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  opportunityId      String?
+  opportunity        Opportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  title              String
+  meetingTypeId      String
+  type               LookupOption      @relation("MeetingTypeOption", fields: [meetingTypeId], references: [id], onDelete: Restrict)
+  agenda             String?
+  description        String?
+  mode               MeetingMode
+  location           String?
+  meetingUrl         String?
+  startAt            DateTime
+  endAt              DateTime
+  reminderAt         DateTime?
+  reminderSentAt     DateTime?
+  status             MeetingStatus     @default(SCHEDULED)
+  organizerId        String
+  organizer          User              @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  createdById        String
+  createdBy          User              @relation("MeetingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  completedAt        DateTime?
+  completedById      String?
+  completedBy        User?             @relation("MeetingCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  completionNote     String?
+  cancelledAt        DateTime?
+  cancelledById      String?
+  cancelledBy        User?             @relation("MeetingCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancellationReason String?
+  assignees          MeetingAssignee[]
+  attendees          MeetingAttendee[]
+  tasks              Task[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([organizationId, startAt])
+  @@index([companyId, startAt])
+  @@index([opportunityId, startAt])
+  @@index([organizerId, startAt])
+  @@index([status, startAt])
+  @@index([meetingTypeId, startAt])
+  @@index([reminderAt, reminderSentAt, status])
+  @@map("meetings")
+}
+
+model MeetingAssignee {
+  meetingId    String
+  meeting      Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation("MeetingAssignedUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedById String?
+  assignedBy   User?    @relation("MeetingAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@id([meetingId, userId])
+  @@index([userId])
+  @@map("meeting_assignees")
+}
+
+model MeetingAttendee {
+  meetingId String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([meetingId, personId])
+  @@index([personId])
+  @@map("meeting_attendees")
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  recipientId String
+  recipient   User   @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  actorId String?
+  actor   User?   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  type     NotificationType
+  priority NotificationPriority @default(NORMAL)
+
+  title String
+  body  String?
+
+  entityType NotificationEntityType?
+  entityId   String?
+
+  actionUrl String?
+  metadata  Json?
+
+  readAt     DateTime?
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String       @default("00000000-0000-4000-8000-000000000001")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([recipientId])
+  @@index([actorId])
+  @@index([type])
+  @@index([priority])
+  @@index([entityType, entityId])
+  @@index([readAt])
+  @@index([archivedAt])
+  @@index([createdAt])
+  @@index([recipientId, readAt, archivedAt, createdAt])
+  @@index([organizationId])
+  @@index([organizationId, recipientId, readAt, archivedAt, createdAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// Pipeline Stage History
+// ============================================================
+
+model PipelineStageHistory {
+  id          String               @id @default(uuid())
+  companyId   String
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromStage   LegacyPipelineStage?
+  toStage     LegacyPipelineStage
+  changedById String?
+  changedBy   User?                @relation(fields: [changedById], references: [id])
+  changedAt   DateTime             @default(now())
+
+  @@index([companyId])
+  @@index([changedAt])
+  @@index([toStage])
+  @@index([companyId, changedAt])
+  @@map("pipeline_stage_history")
+}
+
+model PipelineStage {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  label        String
+  description  String?
+  sortOrder    Int      @default(0)
+  color        String?
+  isActive     Boolean  @default(true)
+  isTerminal   Boolean  @default(false)
+  terminalType String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  opportunities            Opportunity[]
+  opportunityHistoriesFrom OpportunityStageHistory[] @relation("OpportunityHistoryFromStage")
+  opportunityHistoriesTo   OpportunityStageHistory[] @relation("OpportunityHistoryToStage")
+  transitionsFrom          PipelineStageTransition[] @relation("TransitionFromStage")
+  transitionsTo            PipelineStageTransition[] @relation("TransitionToStage")
+
+  @@index([sortOrder])
+  @@index([isActive, sortOrder])
+  @@map("pipeline_stages")
+}
+
+model PipelineStageTransition {
+  id          String         @id @default(uuid())
+  fromStageId String?
+  fromStage   PipelineStage? @relation("TransitionFromStage", fields: [fromStageId], references: [id])
+  toStageId   String
+  toStage     PipelineStage  @relation("TransitionToStage", fields: [toStageId], references: [id])
+  role        UserRole?
+  isAllowed   Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([fromStageId, toStageId, role])
+  @@index([fromStageId])
+  @@index([toStageId])
+  @@index([role])
+  @@map("pipeline_stage_transitions")
+}
+
+// ============================================================
+// Call Card
+// ============================================================
+
+model CallCard {
+  id        String  @id @default(uuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  primaryContactId   String?
+  secondaryContactId String?
+
+  entryAngle  String?
+  painPoint   String?
+  useCase     String?
+  openingLine String?
+  firstEmail  String?
+  linkedinMsg String?
+  discoveryQs Json?
+  objections  Json?
+  meetingAsk  String?
+  callGoal    String?
+
+  followUpNoResponseAt String?
+  followUpInterestAt   String?
+
+  qualificationCriteria    String?
+  disqualificationCriteria String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([primaryContactId])
+  @@index([secondaryContactId])
+  @@map("call_cards")
+}
+
+// ============================================================
+// Persona Library (قدیمی، حفظ شده)
+// ============================================================
+
+model PersonaLibrary {
+  id               String  @id @default(uuid())
+  titlePattern     String
+  defaultPainPoint String?
+  defaultUseCase   String?
+  notes            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([titlePattern])
+  @@map("persona_library")
+}
+
+model LeadSource {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companies Company[] @relation("CompanyLeadSource")
+
+  @@index([isActive, sortOrder])
+  @@map("lead_sources")
+}
+
+model LookupOption {
+  id          String   @id @default(uuid())
+  group       String
+  code        String
+  label       String
+  description String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  personContactTypes    PersonContact[] @relation("PersonContactTypeOption")
+  personSocialPlatforms PersonSocial[]  @relation("PersonSocialPlatformOption")
+  opportunitySources    Opportunity[]   @relation("OpportunitySourceOption")
+  meetings              Meeting[]       @relation("MeetingTypeOption")
+
+  @@unique([group, code])
+  @@index([group])
+  @@index([group, isActive, sortOrder])
+  @@map("lookup_options")
+}
+
+enum AuditScope {
+  TENANT
+  PLATFORM
+  SYSTEM
+}
+
+enum AuditActorType {
+  USER
+  PLATFORM_ADMIN
+  ANONYMOUS
+  SYSTEM
+  LEGACY
+}
+
+enum AuditSource {
+  WEB
+  API
+  AUTH
+  BACKGROUND_JOB
+  SCHEDULER
+  PLATFORM
+  SYSTEM
+  LEGACY
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+  DENIED
+  ERROR
+  LEGACY
+}
+
+model AuditLog {
+  id         String  @id @default(uuid())
+  actorId    String?
+  entityType String
+  entityId   String?
+  action     String
+  before     Json?
+  after      Json?
+  metadata   Json?
+
+  scope             AuditScope?
+  actorType         AuditActorType?
+  actorMembershipId String?
+  source            AuditSource?
+  result            AuditResult?
+  durationMs        Int?
+  errorCode         String?
+
+  requestId     String?
+  ipAddress     String?
+  userAgent     String?
+  requestMethod String?
+  requestPath   String?
+
+  createdAt DateTime @default(now())
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([requestId])
+  @@index([ipAddress])
+  @@index([requestMethod])
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([scope, createdAt])
+  @@index([organizationId, scope, createdAt])
+  @@index([actorMembershipId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([source, result, createdAt])
+  @@map("audit_logs")
+}
+
+model AuditLogArchive {
+  id                 String          @id @default(uuid())
+  originalAuditLogId String          @unique
+  scope              AuditScope?
+  organizationId     String?
+  actorId            String?
+  actorType          AuditActorType?
+  actorMembershipId  String?
+  requestId          String?
+  entityType         String
+  entityId           String?
+  action             String
+  before             Json?
+  after              Json?
+  ipAddress          String?
+  userAgent          String?
+  requestMethod      String?
+  requestPath        String?
+  source             AuditSource?
+  result             AuditResult?
+  durationMs         Int?
+  errorCode          String?
+  metadata           Json?
+  originalCreatedAt  DateTime
+  archivedAt         DateTime        @default(now())
+  archiveBatchId     String
+  contentChecksum    String
+
+  @@index([organizationId, scope, originalCreatedAt])
+  @@index([archiveBatchId])
+  @@map("audit_log_archives")
+}
+
+model AuditRetentionPolicy {
+  id                  String     @id @default(uuid())
+  scope               AuditScope
+  organizationId      String?
+  enabled             Boolean    @default(false)
+  retentionDays       Int?
+  archiveBeforeDelete Boolean    @default(true)
+  updatedById         String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@index([scope, organizationId])
+  @@index([enabled])
+  @@map("audit_retention_policies")
+}
+
+// ============================================================
+// ✅ جدید: مدیریت صنایع، نقاط درد و کاربردها (ماژولار)
+// ============================================================
+
+model Industry {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companies Company[] @relation("CompanyIndustry")
+
+  painPoints IndustryPainPoint[]
+  useCases   IndustryUseCase[]
+
+  @@map("industries")
+}
+
+model PainPoint {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  industries IndustryPainPoint[]
+
+  @@map("pain_points")
+}
+
+model UseCase {
+  id          String            @id @default(uuid())
+  title       String
+  description String?
+  category    String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  industries  IndustryUseCase[]
+
+  @@map("use_cases")
+}
+
+model IndustryPainPoint {
+  id          String    @id @default(uuid())
+  industryId  String
+  industry    Industry  @relation(fields: [industryId], references: [id], onDelete: Cascade)
+  painPointId String
+  painPoint   PainPoint @relation(fields: [painPointId], references: [id], onDelete: Cascade)
+  priority    Int?      @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@unique([industryId, painPointId])
+  @@index([industryId])
+  @@index([painPointId])
+  @@map("industry_pain_points")
+}
+
+model IndustryUseCase {
+  id         String   @id @default(uuid())
+  industryId String
+  industry   Industry @relation(fields: [industryId], references: [id], onDelete: Cascade)
+  useCaseId  String
+  useCase    UseCase  @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+  priority   Int?     @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([industryId, useCaseId])
+  @@index([industryId])
+  @@index([useCaseId])
+  @@map("industry_use_cases")
+}
+
+// ============================================================
+// مدیریت دسترسی‌ها (Policy)
+// ============================================================
+
+model Permission {
+  id          String   @id @default(uuid())
+  action      String   @unique
+  name        String?
+  description String?
+  group       String?
+  isSystem    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model Role {
+  id                      String                   @id @default(uuid())
+  code                    String                   @unique
+  name                    String
+  description             String?
+  baseRole                UserRole                 @default(REP)
+  isSystem                Boolean                  @default(false)
+  isActive                Boolean                  @default(true)
+  scope                   RoleScope                @default(SYSTEM)
+  organizationId          String?
+  organization            Organization?            @relation("TenantRoles", fields: [organizationId], references: [id], onDelete: Restrict)
+  normalizedCode          String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  users                   User[]
+  permissions             RolePermission[]
+  organizationMemberships OrganizationMembership[]
+  ssoGroupMappings        SsoGroupRoleMapping[]
+
+  @@unique([organizationId, normalizedCode])
+  @@index([isActive])
+  @@index([scope, organizationId, isActive])
+  @@map("roles")
+}
+
+model OrganizationMembership {
+  id             String                       @id @default(uuid())
+  userId         String
+  user           User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roleId         String?
+  role           Role?                        @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  teamId         String?
+  team           Team?                        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  status         OrganizationMembershipStatus @default(INVITED)
+  isDefault      Boolean                      @default(false)
+  isTenantOwner  Boolean                      @default(false)
+  joinedAt       DateTime?
+  invitedAt      DateTime?
+  suspendedAt    DateTime?
+  lastAccessAt   DateTime?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, isTenantOwner, status])
+  @@index([userId, status])
+  @@index([roleId])
+  @@index([teamId])
+  @@index([userId, isDefault, status])
+  @@map("organization_memberships")
+}
+
+model PlatformAuthority {
+  id        String       @id @default(uuid())
+  userId    String       @unique
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      PlatformRole @default(PLATFORM_ADMIN)
+  grantedAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([role])
+  @@map("platform_authorities")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  role         UserRole?
+  roleId       String?
+  assignedRole Role?      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([role, permissionId])
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@map("role_permissions")
+}
+
+model Plan {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  revision    Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  features      PlanFeature[]
+  quotas        PlanQuota[]
+  subscriptions Subscription[]
+
+  @@index([isActive])
+  @@map("plans")
+}
+
+model PlanFeature {
+  id        String     @id @default(uuid())
+  planId    String
+  plan      Plan       @relation(fields: [planId], references: [id], onDelete: Restrict)
+  feature   FeatureKey
+  enabled   Boolean    @default(false)
+  value     Json?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([planId, feature])
+  @@index([feature])
+  @@map("plan_features")
+}
+
+model Subscription {
+  id                String             @id @default(uuid())
+  organizationId    String
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  planId            String
+  plan              Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  type              SubscriptionType
+  status            SubscriptionStatus @default(PENDING)
+  startAt           DateTime
+  endAt             DateTime?
+  gracePeriodEndAt  DateTime?
+  contractReference String?
+  internalNote      String?
+  createdById       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([organizationId, status, startAt, endAt])
+  @@index([planId])
+  @@map("subscriptions")
+}
+
+model OrganizationEntitlement {
+  id             String                   @id @default(uuid())
+  organizationId String
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  feature        FeatureKey
+  state          EntitlementOverrideState
+  reason         String?
+  createdById    String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@unique([organizationId, feature])
+  @@index([feature])
+  @@map("organization_entitlements")
+}
+
+model PlanQuota {
+  id          String           @id @default(uuid())
+  planId      String
+  plan        Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
+  metric      QuotaMetric
+  enabled     Boolean          @default(false)
+  isUnlimited Boolean          @default(false)
+  softLimit   BigInt?
+  hardLimit   BigInt?
+  resetPeriod QuotaResetPeriod @default(MONTHLY)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([planId, metric])
+  @@index([metric])
+  @@map("plan_quotas")
+}
+
+model OrganizationQuotaOverride {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  metric         QuotaMetric
+  enabled        Boolean?
+  isUnlimited    Boolean?
+  softLimit      BigInt?
+  hardLimit      BigInt?
+  resetPeriod    QuotaResetPeriod?
+  reason         String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([organizationId, metric])
+  @@index([metric])
+  @@map("organization_quota_overrides")
+}
+
+model UsageCounter {
+  id                 String           @id @default(uuid())
+  organizationId     String
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  metric             QuotaMetric
+  periodStart        DateTime
+  periodEnd          DateTime?
+  currentValue       BigInt           @default(0)
+  effectiveSoftLimit BigInt?
+  effectiveHardLimit BigInt?
+  resetPeriod        QuotaResetPeriod
+  configurationState String
+  version            Int              @default(1)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  reservations UsageReservation[]
+
+  @@unique([organizationId, metric, periodStart])
+  @@index([organizationId, metric, periodEnd])
+  @@map("usage_counters")
+}
+
+model UsageSnapshot {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  metric             QuotaMetric
+  periodStart        DateTime
+  periodEnd          DateTime?
+  finalUsage         BigInt
+  softLimit          BigInt?
+  hardLimit          BigInt?
+  percentageBasisPts Int?
+  exceeded           Boolean
+  capturedAt         DateTime     @default(now())
+
+  @@unique([organizationId, metric, periodStart])
+  @@index([organizationId, capturedAt])
+  @@map("usage_snapshots")
+}
+
+model QuotaThresholdEvent {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  metric         QuotaMetric
+  periodStart    DateTime
+  threshold      Int
+  usageValue     BigInt
+  limitValue     BigInt
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, metric, periodStart, threshold])
+  @@index([organizationId, createdAt])
+  @@map("quota_threshold_events")
+}
+
+model UsageReservation {
+  id             String                 @id @default(uuid())
+  organizationId String
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  counterId      String
+  counter        UsageCounter           @relation(fields: [counterId], references: [id], onDelete: Restrict)
+  metric         QuotaMetric
+  idempotencyKey String
+  amount         BigInt
+  status         UsageReservationStatus @default(RESERVED)
+  expiresAt      DateTime?
+  committedAt    DateTime?
+  releasedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@unique([organizationId, metric, idempotencyKey])
+  @@index([organizationId, status, expiresAt])
+  @@map("usage_reservations")
+}
+
+model UsageEvent {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  metric         QuotaMetric
+  idempotencyKey String
+  amount         BigInt
+  periodStart    DateTime
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, metric, idempotencyKey])
+  @@index([organizationId, metric, periodStart])
+  @@map("usage_events")
+}
+
+model FileAttachment {
+  id String @id @default(uuid())
+
+  entityType FileAttachmentEntityType
+  entityId   String
+
+  type            ArtifactType              @default(FILE)
+  provider        ArtifactProvider          @default(LOCAL)
+  storageProvider AttachmentStorageProvider @default(LOCAL)
+
+  name            String
+  externalUrl     String?
+  metadata        Json?
+  category        String?
+  tags            String[] @default([])
+  versionLabel    String?
+  confidentiality String?
+
+  bucket      String?
+  objectKey   String?
+  storagePath String?
+
+  originalFileName String?
+  storedFileName   String?
+
+  mimeType  String?
+  sizeBytes Int?
+  sha256    String?
+
+  description String?
+
+  uploadedById String?
+  uploadedBy   User?     @relation("ArtifactUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  deletedAt    DateTime?
+  deletedById  String?
+  deletedBy    User?     @relation("ArtifactDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId            String                     @default("00000000-0000-4000-8000-000000000001")
+  organization              Organization               @relation(fields: [organizationId], references: [id])
+  brandingLogoUses          OrganizationBranding[]     @relation("OrganizationBrandingLogo")
+  brandingFaviconUses       OrganizationBranding[]     @relation("OrganizationBrandingFavicon")
+  technicalDocumentVersions TechnicalDocumentVersion[] @relation("TechnicalDocumentVersionAttachment")
+  technicalResources        TechnicalResource[]        @relation("TechnicalResourceAttachment")
+  links                     ArtifactLink[]
+  taskReviewArtifacts       TaskReviewArtifact[]
+
+  @@index([entityType, entityId])
+  @@index([storageProvider])
+  @@index([bucket])
+  @@index([objectKey])
+  @@index([uploadedById])
+  @@index([sha256])
+  @@index([deletedAt])
+  @@index([organizationId])
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, type, provider, createdAt])
+  @@index([organizationId, name])
+  @@map("file_attachments")
+}
+
+model ArtifactLink {
+  id             String                   @id @default(uuid())
+  organizationId String
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  artifactId     String
+  artifact       FileAttachment           @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  entityType     FileAttachmentEntityType
+  entityId       String
+  relationType   ArtifactRelationType     @default(ATTACHMENT)
+  createdById    String?
+  createdBy      User?                    @relation("ArtifactLinkCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime                 @default(now())
+
+  @@unique([artifactId, entityType, entityId, relationType])
+  @@index([organizationId, entityType, entityId, createdAt])
+  @@index([artifactId])
+  @@index([relationType])
+  @@map("artifact_links")
+}
+
+enum TechnicalReleaseStatus {
+  DRAFT
+  PLANNED
+  RELEASED
+  DEPRECATED
+  END_OF_LIFE
+  ARCHIVED
+}
+
+enum KnowledgeBaseStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum KnowledgeContentType {
+  ARTICLE
+  EXTERNAL_LINK
+}
+
+enum TechnicalVisibility {
+  INTERNAL
+  RESTRICTED
+}
+
+enum TechnicalDocumentStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  ACTIVE
+  SUPERSEDED
+  EXPIRED
+  ARCHIVED
+}
+
+enum TechnicalConfidentiality {
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum TechnicalResourceType {
+  SDK
+  SAMPLE_CODE
+  API_COLLECTION
+  CONFIGURATION
+  DRIVER
+  FIRMWARE
+  SCRIPT
+  TEMPLATE
+  EXTERNAL_LINK
+  OTHER
+}
+
+enum TechnicalResourceStatus {
+  DRAFT
+  ACTIVE
+  DEPRECATED
+  ARCHIVED
+}
+
+enum TenderType {
+  RFP
+  RFQ
+  RFI
+  PUBLIC_TENDER
+  PRIVATE_TENDER
+  TECHNICAL_EVALUATION
+  OTHER
+}
+
+enum TenderStatus {
+  DRAFT
+  IDENTIFIED
+  QUALIFICATION
+  PREPARING
+  TECHNICAL_REVIEW
+  COMMERCIAL_REVIEW
+  READY_FOR_SUBMISSION
+  SUBMITTED
+  UNDER_EVALUATION
+  CLARIFICATION
+  WON
+  LOST
+  CANCELLED
+  ARCHIVED
+}
+
+enum TenderResult {
+  WON
+  LOST
+  CANCELLED
+}
+
+enum TenderBidDecision {
+  UNDECIDED
+  BID
+  NO_BID
+}
+
+enum TenderQualificationDecision {
+  PENDING
+  GO
+  CONDITIONAL_GO
+  NO_GO
+}
+
+enum TenderRequirementStatus {
+  OPEN
+  IN_PROGRESS
+  READY
+  VERIFIED
+  NOT_APPLICABLE
+  BLOCKED
+}
+
+enum TenderReviewType {
+  TECHNICAL
+  COMMERCIAL
+}
+
+enum TenderReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model TechnicalRelease {
+  id                 String                 @id @default(uuid())
+  organizationId     String
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  productId          String
+  product            ProductCatalogItem     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  version            String
+  title              String
+  summary            String?
+  releaseNotes       String?
+  status             TechnicalReleaseStatus @default(DRAFT)
+  releaseDate        DateTime?
+  supportStartDate   DateTime?
+  supportEndDate     DateTime?
+  endOfLifeDate      DateTime?
+  createdById        String
+  createdBy          User                   @relation("TechnicalReleaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById        String
+  updatedBy          User                   @relation("TechnicalReleaseUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  revision           Int                    @default(1)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  archivedAt         DateTime?
+  knowledgeArticles  KnowledgeBaseArticle[]
+  technicalDocuments TechnicalDocument[]
+  technicalResources TechnicalResource[]
+
+  @@unique([organizationId, productId, version])
+  @@index([organizationId, productId])
+  @@index([organizationId, status])
+  @@map("technical_releases")
+}
+
+model KnowledgeBaseArticle {
+  id             String               @id @default(uuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  title          String
+  slug           String
+  summary        String?
+  content        String?
+  contentType    KnowledgeContentType @default(ARTICLE)
+  externalUrl    String?
+  status         KnowledgeBaseStatus  @default(DRAFT)
+  category       String?
+  visibility     TechnicalVisibility  @default(INTERNAL)
+  productId      String?
+  product        ProductCatalogItem?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  releaseId      String?
+  release        TechnicalRelease?    @relation(fields: [releaseId], references: [id], onDelete: SetNull)
+  ownerId        String?
+  owner          User?                @relation("KnowledgeArticleOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  authorId       String
+  author         User                 @relation("KnowledgeArticleAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewerId     String?
+  reviewer       User?                @relation("KnowledgeArticleReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  publishedAt    DateTime?
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  archivedAt     DateTime?
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@index([organizationId, productId])
+  @@index([organizationId, releaseId])
+  @@index([organizationId, nextReviewAt])
+  @@map("knowledge_base_articles")
+}
+
+model TechnicalDocument {
+  id              String                     @id @default(uuid())
+  organizationId  String
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  title           String
+  description     String?
+  documentType    String
+  status          TechnicalDocumentStatus    @default(DRAFT)
+  confidentiality TechnicalConfidentiality   @default(INTERNAL)
+  ownerId         String
+  owner           User                       @relation("TechnicalDocumentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  productId       String?
+  product         ProductCatalogItem?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  releaseId       String?
+  release         TechnicalRelease?          @relation(fields: [releaseId], references: [id], onDelete: SetNull)
+  companyId       String?
+  company         Company?                   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  opportunityId   String?
+  opportunity     Opportunity?               @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  tenderId        String?
+  tender          Tender?                    @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+  effectiveFrom   DateTime?
+  expiresAt       DateTime?
+  createdById     String
+  createdBy       User                       @relation("TechnicalDocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById     String
+  updatedBy       User                       @relation("TechnicalDocumentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  revision        Int                        @default(1)
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  archivedAt      DateTime?
+  versions        TechnicalDocumentVersion[]
+  deliverables    TenderDeliverable[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, productId])
+  @@index([organizationId, releaseId])
+  @@index([organizationId, companyId])
+  @@index([organizationId, opportunityId])
+  @@index([organizationId, tenderId])
+  @@map("technical_documents")
+}
+
+model TechnicalDocumentVersion {
+  id             String            @id @default(uuid())
+  organizationId String
+  documentId     String
+  document       TechnicalDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  version        String
+  attachmentId   String?
+  attachment     FileAttachment?   @relation("TechnicalDocumentVersionAttachment", fields: [attachmentId], references: [id], onDelete: SetNull)
+  contentHash    String?
+  approvalNote   String?
+  approvedById   String?
+  approvedBy     User?             @relation("TechnicalDocumentVersionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt     DateTime?
+  createdById    String
+  createdBy      User              @relation("TechnicalDocumentVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime          @default(now())
+
+  @@unique([organizationId, documentId, version])
+  @@index([organizationId, documentId])
+  @@map("technical_document_versions")
+}
+
+model TechnicalResource {
+  id             String                  @id @default(uuid())
+  organizationId String
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  title          String
+  description    String?
+  resourceType   TechnicalResourceType
+  status         TechnicalResourceStatus @default(DRAFT)
+  productId      String?
+  product        ProductCatalogItem?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  releaseId      String?
+  release        TechnicalRelease?       @relation(fields: [releaseId], references: [id], onDelete: SetNull)
+  url            String?
+  attachmentId   String?
+  attachment     FileAttachment?         @relation("TechnicalResourceAttachment", fields: [attachmentId], references: [id], onDelete: SetNull)
+  version        String?
+  checksum       String?
+  ownerId        String?
+  owner          User?                   @relation("TechnicalResourceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdById    String
+  createdBy      User                    @relation("TechnicalResourceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById    String
+  updatedBy      User                    @relation("TechnicalResourceUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  archivedAt     DateTime?
+
+  @@index([organizationId, status])
+  @@index([organizationId, resourceType])
+  @@index([organizationId, productId])
+  @@index([organizationId, releaseId])
+  @@map("technical_resources")
+}
+
+model Tender {
+  id                      String                      @id @default(uuid())
+  organizationId          String
+  organization            Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  title                   String
+  referenceNumber         String?
+  companyId               String?
+  company                 Company?                    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  opportunityId           String?
+  opportunity             Opportunity?                @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  ownerId                 String
+  owner                   User                        @relation("TechnicalTenderOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  teamId                  String?
+  team                    Team?                       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  status                  TenderStatus                @default(DRAFT)
+  tenderType              TenderType
+  source                  String?
+  description             String?
+  submissionDeadline      DateTime?
+  technicalDeadline       DateTime?
+  expectedDecisionDate    DateTime?
+  estimatedValue          Decimal?                    @db.Decimal(18, 2)
+  currency                String?                     @default("IRR")
+  probability             Int?
+  technicalLeadId         String?
+  technicalLead           User?                       @relation("TechnicalTenderTechnicalLead", fields: [technicalLeadId], references: [id], onDelete: SetNull)
+  commercialLeadId        String?
+  commercialLead          User?                       @relation("TechnicalTenderCommercialLead", fields: [commercialLeadId], references: [id], onDelete: SetNull)
+  result                  TenderResult?
+  resultReason            String?
+  bidDecision             TenderBidDecision           @default(UNDECIDED)
+  qualificationDecision   TenderQualificationDecision @default(PENDING)
+  fitScore                Int?
+  riskScore               Int?
+  feasibilityScore        Int?
+  fitNotes                String?
+  riskNotes               String?
+  feasibilityNotes        String?
+  qualificationSummary    String?
+  qualificationConditions String?
+  decisionReason          String?
+  submittedAt             DateTime?
+  submittedById           String?
+  submittedBy             User?                       @relation("TechnicalTenderSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  closedAt                DateTime?
+  closedById              String?
+  closedBy                User?                       @relation("TechnicalTenderClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  createdById             String
+  createdBy               User                        @relation("TechnicalTenderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById             String
+  updatedBy               User                        @relation("TechnicalTenderUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  revision                Int                         @default(1)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  archivedAt              DateTime?
+  requirements            TenderRequirement[]
+  documents               TechnicalDocument[]
+  deliverables            TenderDeliverable[]
+  reviews                 TenderReview[]
+
+  @@unique([organizationId, referenceNumber])
+  @@index([organizationId, status])
+  @@index([organizationId, companyId])
+  @@index([organizationId, opportunityId])
+  @@index([organizationId, ownerId])
+  @@index([organizationId, teamId])
+  @@index([organizationId, submissionDeadline])
+  @@map("technical_tenders")
+}
+
+model TenderRequirement {
+  id                    String                        @id @default(uuid())
+  organizationId        String
+  tenderId              String
+  tender                Tender                        @relation(fields: [tenderId], references: [id], onDelete: Restrict)
+  category              String?
+  title                 String
+  description           String?
+  section               String?
+  page                  String?
+  referenceId           String?
+  notes                 String?
+  mandatory             Boolean                       @default(false)
+  status                TenderRequirementStatus       @default(OPEN)
+  ownerId               String?
+  owner                 User?                         @relation("TenderRequirementOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  parentRequirementId   String?
+  parentRequirement     TenderRequirement?            @relation("TenderRequirementHierarchy", fields: [parentRequirementId], references: [id], onDelete: Restrict)
+  childRequirements     TenderRequirement[]           @relation("TenderRequirementHierarchy")
+  taskId                String?
+  task                  Task?                         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  dependencies          TenderRequirementDependency[] @relation("RequirementDependencies")
+  dependedOnBy          TenderRequirementDependency[] @relation("RequirementDependents")
+  dueDate               DateTime?
+  response              String?
+  blockedReason         String?
+  blockedAt             DateTime?
+  blockedById           String?
+  blockedBy             User?                         @relation("TenderRequirementBlockedBy", fields: [blockedById], references: [id], onDelete: SetNull)
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  opportunityLineItem   OpportunityLineItem?          @relation(fields: [opportunityLineItemId], references: [id], onDelete: SetNull)
+  opportunityLineItemId String?
+
+  @@unique([organizationId, tenderId, referenceId])
+  @@index([organizationId, tenderId])
+  @@index([organizationId, status])
+  @@index([organizationId, parentRequirementId])
+  @@index([organizationId, ownerId])
+  @@index([organizationId, taskId])
+  @@index([opportunityLineItemId])
+  @@map("tender_requirements")
+}
+
+model TenderRequirementDependency {
+  id                     String            @id @default(uuid())
+  requirementId          String
+  requirement            TenderRequirement @relation("RequirementDependencies", fields: [requirementId], references: [id], onDelete: Cascade)
+  dependsOnRequirementId String
+  dependsOnRequirement   TenderRequirement @relation("RequirementDependents", fields: [dependsOnRequirementId], references: [id], onDelete: Cascade)
+  createdAt              DateTime          @default(now())
+
+  @@unique([requirementId, dependsOnRequirementId])
+  @@index([dependsOnRequirementId])
+  @@map("tender_requirement_dependencies")
+}
+
+model TenderDeliverable {
+  id             String            @id @default(uuid())
+  organizationId String
+  tenderId       String
+  tender         Tender            @relation(fields: [tenderId], references: [id], onDelete: Restrict)
+  documentId     String
+  document       TechnicalDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  label          String?
+  required       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+
+  @@unique([organizationId, tenderId, documentId])
+  @@index([organizationId, tenderId])
+  @@map("tender_deliverables")
+}
+
+model TenderReview {
+  id             String             @id @default(uuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  tenderId       String
+  tender         Tender             @relation(fields: [tenderId], references: [id], onDelete: Restrict)
+  type           TenderReviewType
+  status         TenderReviewStatus @default(PENDING)
+  reviewerId     String?
+  reviewer       User?              @relation("TenderReviewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  requestedById  String
+  requestedBy    User               @relation("TenderReviewRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedAt    DateTime           @default(now())
+  decidedById    String?
+  decidedBy      User?              @relation("TenderReviewDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  reviewedAt     DateTime?
+  comment        String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([organizationId, tenderId, type, createdAt])
+  @@index([organizationId, reviewerId, status])
+  @@map("tender_reviews")
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  DELIVERED
+  FAILED
+  RETRYING
+  SKIPPED
+}
+
+enum NotificationTriggerType {
+  DOMAIN_EVENT
+  SCHEDULED
+  MANUAL_RETRY
+  AUTOMATIC_RETRY
+  SYSTEM
+}
+
+enum NotificationFailureCategory {
+  NETWORK
+  AUTHENTICATION
+  PROVIDER_REJECTED
+  INVALID_DESTINATION
+  TEMPLATE_ERROR
+  RATE_LIMIT
+  TIMEOUT
+  CONFIGURATION
+  UNKNOWN
+}
+
+enum NotificationRecipientType {
+  USER
+  ROLE
+  TEAM
+  ASSIGNEE
+  OWNER
+  CREATOR
+  MANAGER
+}
+
+enum NotificationScheduleType {
+  RELATIVE
+  OVERDUE
+}
+
+enum NotificationScheduleTriggerMode {
+  BEFORE
+  AT
+  AT_OR_AFTER
+  AFTER
+}
+
+enum NotificationQuietHoursMode {
+  SUPPRESS
+  DEFER
+}
+
+enum NotificationDigestFrequency {
+  DAILY
+}
+
+enum NotificationDigestBucketStatus {
+  OPEN
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum NotificationEscalationRunStatus {
+  PENDING
+  PROCESSING
+  SENT
+  CANCELLED_RESOLVED
+  FAILED
+}
+
+model NotificationEvent {
+  id             String                 @id @default(uuid())
+  organizationId String
+  organization   Organization           @relation("NotificationCoreEvents", fields: [organizationId], references: [id], onDelete: Cascade)
+  eventName      String
+  aggregateType  String
+  aggregateId    String
+  actorId        String?
+  actor          User?                  @relation("NotificationCoreEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  payload        Json                   @default("{}")
+  idempotencyKey String?
+  occurredAt     DateTime               @default(now())
+  createdAt      DateTime               @default(now())
+  deliveries     NotificationDelivery[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, eventName, occurredAt])
+  @@index([aggregateType, aggregateId])
+  @@index([actorId])
+  @@map("notification_events")
+}
+
+model NotificationRule {
+  id               String                      @id @default(uuid())
+  organizationId   String
+  organization     Organization                @relation("NotificationCoreRules", fields: [organizationId], references: [id], onDelete: Cascade)
+  name             String
+  eventName        String
+  enabled          Boolean                     @default(true)
+  mandatory        Boolean                     @default(false)
+  priority         Int                         @default(100)
+  deliveryPriority NotificationPriority        @default(NORMAL)
+  digestPolicyId   String?
+  digestPolicy     NotificationDigestPolicy?   @relation(fields: [digestPolicyId], references: [id], onDelete: SetNull)
+  conditions       Json?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  recipientRules   NotificationRecipientRule[]
+  deliveries       NotificationDelivery[]
+  schedule         NotificationSchedule?
+
+  @@index([organizationId, eventName, enabled])
+  @@index([digestPolicyId])
+  @@map("notification_rules")
+}
+
+model NotificationSchedule {
+  id                 String                          @id @default(uuid())
+  organizationId     String
+  organization       Organization                    @relation("NotificationSchedules", fields: [organizationId], references: [id], onDelete: Cascade)
+  ruleId             String                          @unique
+  rule               NotificationRule                @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  enabled            Boolean                         @default(true)
+  scheduleType       NotificationScheduleType
+  sourceField        String
+  offsetMinutes      Int                             @default(0)
+  triggerMode        NotificationScheduleTriggerMode
+  gracePeriodMinutes Int                             @default(60)
+  lastEvaluatedAt    DateTime?
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+
+  @@index([organizationId, enabled])
+  @@index([organizationId, scheduleType, enabled])
+  @@map("notification_schedules")
+}
+
+model NotificationRecipientRule {
+  id         String                    @id @default(uuid())
+  ruleId     String
+  rule       NotificationRule          @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  type       NotificationRecipientType
+  targetId   String?
+  channels   NotificationChannel[]
+  enabled    Boolean                   @default(true)
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+  deliveries NotificationDelivery[]
+
+  @@index([ruleId, enabled])
+  @@index([type, targetId])
+  @@map("notification_recipient_rules")
+}
+
+model NotificationTemplate {
+  id             String                 @id @default(uuid())
+  organizationId String
+  organization   Organization           @relation("NotificationCoreTemplates", fields: [organizationId], references: [id], onDelete: Cascade)
+  eventName      String
+  channel        NotificationChannel
+  locale         String                 @default("fa-IR")
+  subject        String?
+  body           String
+  isActive       Boolean                @default(true)
+  version        Int                    @default(1)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  deliveries     NotificationDelivery[]
+
+  @@unique([organizationId, eventName, channel, locale, version])
+  @@index([organizationId, eventName, channel, isActive])
+  @@map("notification_templates")
+}
+
+model NotificationDelivery {
+  id                  String                        @id @default(uuid())
+  organizationId      String
+  organization        Organization                  @relation("NotificationCoreDeliveryOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  eventId             String
+  event               NotificationEvent             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ruleId              String?
+  rule                NotificationRule?             @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  recipientRuleId     String?
+  recipientRule       NotificationRecipientRule?    @relation(fields: [recipientRuleId], references: [id], onDelete: SetNull)
+  recipientUserId     String?
+  recipientUser       User?                         @relation("NotificationCoreDeliveryRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  templateId          String?
+  template            NotificationTemplate?         @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  channel             NotificationChannel
+  status              NotificationDeliveryStatus    @default(PENDING)
+  priority            NotificationPriority          @default(NORMAL)
+  orchestrationReason String?
+  deferredUntil       DateTime?
+  digestBucketId      String?
+  digestBucket        NotificationDigestBucket?     @relation(fields: [digestBucketId], references: [id], onDelete: SetNull)
+  escalationRunId     String?
+  escalationRun       NotificationEscalationRun?    @relation(fields: [escalationRunId], references: [id], onDelete: SetNull)
+  destination         String?
+  deduplicationKey    String
+  attemptCount        Int                           @default(0)
+  providerMessageId   String?
+  failureCode         String?
+  failureMessage      String?
+  lastAttemptAt       DateTime?
+  nextAttemptAt       DateTime?
+  processingStartedAt DateTime?
+  retryRequestedAt    DateTime?
+  retryRequestedById  String?
+  retryRequestedBy    User?                         @relation("NotificationDeliveryRetryRequestedBy", fields: [retryRequestedById], references: [id], onDelete: SetNull)
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  attempts            NotificationDeliveryAttempt[]
+
+  @@unique([organizationId, deduplicationKey])
+  @@index([eventId])
+  @@index([organizationId, status, createdAt])
+  @@index([ruleId])
+  @@index([recipientUserId, status, createdAt])
+  @@index([channel, status, createdAt])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([status, processingStartedAt])
+  @@index([retryRequestedById])
+  @@index([organizationId, deferredUntil])
+  @@index([digestBucketId])
+  @@index([escalationRunId])
+  @@map("notification_deliveries")
+}
+
+model NotificationDeliveryAttempt {
+  id                String                       @id @default(uuid())
+  organizationId    String
+  organization      Organization                 @relation("NotificationDeliveryAttemptOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveryId        String
+  delivery          NotificationDelivery         @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  attemptNumber     Int
+  triggerType       NotificationTriggerType
+  triggeredByUserId String?
+  triggeredByUser   User?                        @relation("NotificationDeliveryAttemptTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  status            NotificationDeliveryStatus
+  provider          String?
+  providerMessageId String?
+  failureCategory   NotificationFailureCategory?
+  failureCode       String?
+  failureReason     String?
+  startedAt         DateTime
+  finishedAt        DateTime?
+  createdAt         DateTime                     @default(now())
+
+  @@unique([deliveryId, attemptNumber])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, deliveryId, createdAt])
+  @@index([triggeredByUserId])
+  @@map("notification_delivery_attempts")
+}
+
+model NotificationPreference {
+  id             String              @id @default(uuid())
+  organizationId String
+  organization   Organization        @relation("NotificationCorePreferences", fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                @relation("NotificationCorePreferences", fields: [userId], references: [id], onDelete: Cascade)
+  eventName      String
+  channel        NotificationChannel
+  enabled        Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([organizationId, userId, eventName, channel])
+  @@index([userId, eventName])
+  @@map("notification_preferences")
+}
+
+model NotificationSmsSettings {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String
+  apiUrl         String
+  apiKeyEnc      String?
+  senderNumber   String
+  enabled        Boolean      @default(false)
+  timeoutMs      Int          @default(10000)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, enabled])
+  @@map("notification_sms_settings")
+}
+
+enum NotificationPushEndpointType {
+  WEB
+  ANDROID
+  IOS
+  OTHER
+}
+
+model NotificationPushSettings {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String       @default("WEB_PUSH")
+  publicKey      String?
+  privateKeyEnc  String?
+  subject        String?
+  enabled        Boolean      @default(false)
+  timeoutMs      Int          @default(10000)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, enabled])
+  @@map("notification_push_settings")
+}
+
+model NotificationPushEndpoint {
+  id                 String                       @id @default(uuid())
+  organizationId     String
+  organization       Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider           String                       @default("WEB_PUSH")
+  endpointType       NotificationPushEndpointType @default(WEB)
+  externalEndpointId String
+  endpointEnc        String
+  metadata           Json?
+  active             Boolean                      @default(true)
+  lastSeenAt         DateTime                     @default(now())
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  @@unique([organizationId, provider, externalEndpointId])
+  @@index([organizationId])
+  @@index([organizationId, userId, provider, active])
+  @@map("notification_push_endpoints")
+}
+
+model NotificationQuietHoursPolicy {
+  id             String                     @id @default(uuid())
+  organizationId String                     @unique
+  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enabled        Boolean                    @default(false)
+  startTime      String                     @default("22:00")
+  endTime        String                     @default("07:00")
+  timezone       String                     @default("Asia/Tehran")
+  channels       NotificationChannel[]
+  allowCritical  Boolean                    @default(true)
+  mode           NotificationQuietHoursMode @default(DEFER)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@index([organizationId, enabled])
+  @@map("notification_quiet_hours_policies")
+}
+
+model NotificationDigestPolicy {
+  id              String                      @id @default(uuid())
+  organizationId  String
+  organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  enabled         Boolean                     @default(true)
+  frequency       NotificationDigestFrequency @default(DAILY)
+  sendTime        String
+  timezone        String                      @default("Asia/Tehran")
+  subjectTemplate String                      @default("خلاصه اعلان‌های روزانه")
+  introText       String                      @default("خلاصه اعلان‌های شما:")
+  eventNames      String[]
+  channels        NotificationChannel[]
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  rules           NotificationRule[]
+  buckets         NotificationDigestBucket[]
+
+  @@index([organizationId, enabled])
+  @@map("notification_digest_policies")
+}
+
+model NotificationDigestBucket {
+  id                String                         @id @default(uuid())
+  organizationId    String
+  organization      Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  policyId          String
+  policy            NotificationDigestPolicy       @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  recipientUserId   String
+  channel           NotificationChannel
+  windowStart       DateTime
+  scheduledFor      DateTime
+  status            NotificationDigestBucketStatus @default(OPEN)
+  carrierDeliveryId String?                        @unique
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+  items             NotificationDigestItem[]
+  deliveries        NotificationDelivery[]
+
+  @@unique([organizationId, policyId, recipientUserId, channel, windowStart])
+  @@index([organizationId, status, scheduledFor])
+  @@map("notification_digest_buckets")
+}
+
+model NotificationDigestItem {
+  id         String                   @id @default(uuid())
+  bucketId   String
+  bucket     NotificationDigestBucket @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+  deliveryId String                   @unique
+  eventId    String
+  createdAt  DateTime                 @default(now())
+
+  @@index([bucketId, createdAt])
+  @@map("notification_digest_items")
+}
+
+model NotificationEscalationPolicy {
+  id             String                       @id @default(uuid())
+  organizationId String
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  enabled        Boolean                      @default(true)
+  eventName      String
+  aggregateType  String                       @default("TASK")
+  conditions     Json?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  steps          NotificationEscalationStep[]
+  runs           NotificationEscalationRun[]
+
+  @@index([organizationId, eventName, enabled])
+  @@map("notification_escalation_policies")
+}
+
+model NotificationEscalationStep {
+  id            String                       @id @default(uuid())
+  policyId      String
+  policy        NotificationEscalationPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  stepOrder     Int
+  delayMinutes  Int
+  recipientType NotificationRecipientType
+  targetId      String?
+  channels      NotificationChannel[]
+  priority      NotificationPriority         @default(HIGH)
+  mandatory     Boolean                      @default(true)
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  runs          NotificationEscalationRun[]
+
+  @@unique([policyId, stepOrder])
+  @@index([policyId, delayMinutes])
+  @@map("notification_escalation_steps")
+}
+
+model NotificationEscalationRun {
+  id             String                          @id @default(uuid())
+  organizationId String
+  organization   Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  policyId       String
+  policy         NotificationEscalationPolicy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  stepId         String
+  step           NotificationEscalationStep      @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  sourceEventId  String
+  aggregateType  String
+  aggregateId    String
+  sourceDueAt    DateTime?
+  scheduledFor   DateTime
+  status         NotificationEscalationRunStatus @default(PENDING)
+  resolvedAt     DateTime?
+  createdAt      DateTime                        @default(now())
+  updatedAt      DateTime                        @updatedAt
+  deliveries     NotificationDelivery[]
+
+  @@unique([organizationId, sourceEventId, stepId])
+  @@index([organizationId, status, scheduledFor])
+  @@index([aggregateType, aggregateId])
+  @@map("notification_escalation_runs")
+}

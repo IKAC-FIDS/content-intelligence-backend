@@ -1,0 +1,15 @@
+extends:
+  - minimal
+rules:
+  operation-operationId: error
+  operation-operationId-unique: error
+  no-unresolved-refs: error
+  security-defined: error
+  no-server-example.com: off
+  info-license: off
+  operation-description: off
+  operation-summary: off
+  operation-4xx-response: off
+  operation-2xx-response: off
+  no-ambiguous-paths: off
+  no-unused-components: off
