@@ -11,8 +11,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { FindUsersDto } from './dto/find-users.dto';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
-import { FindOwnerOptionsDto } from './dto/find-owner-options.dto';
-import { FindAssigneeOptionsDto } from './dto/find-assignee-options.dto';
 import { ResetUserPasswordDto } from './dto/reset-user-password.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -36,27 +34,6 @@ export class UsersController {
   @Permissions('user:view')
   findAll(@Query() query: FindUsersDto, @CurrentUser() actor: CurrentUserPayload) {
     return this.usersService.findAll(query, actor);
-  }
-
-  @Get('owner-options')
-  @Permissions('company:assign-owner')
-  getOwnerOptions(@CurrentUser() user: CurrentUserPayload) {
-    return this.usersService.getOwnerOptions(user);
-  }
-
-  @Get('owner-options/v2')
-  @Permissions('company:assign-owner')
-  findOwnerOptions(
-    @Query() query: FindOwnerOptionsDto,
-    @CurrentUser() user: CurrentUserPayload,
-  ) {
-    return this.usersService.findOwnerOptions(user, query);
-  }
-
-  @Get('assignee-options')
-  @AnyPermission('meeting:create', 'meeting:update', 'task:create', 'task:update', 'task:assign', 'task:reassign', 'task:create-subtask', 'technical-tender:manage', 'technical-tender:review-technical', 'technical-tender:review-commercial')
-  findAssigneeOptions(@Query() query: FindAssigneeOptionsDto, @CurrentUser() user: CurrentUserPayload) {
-    return this.usersService.findAssigneeOptions(user, query);
   }
 
   // ============================================================

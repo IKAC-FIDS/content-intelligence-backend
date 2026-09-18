@@ -15,8 +15,6 @@ import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FindUsersDto } from './dto/find-users.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
-import { FindOwnerOptionsDto } from './dto/find-owner-options.dto';
-import { FindAssigneeOptionsDto } from './dto/find-assignee-options.dto';
 import { OrganizationMembershipsService } from '../organization-memberships/organization-memberships.service';
 import { QuotaService } from '../quota/quota.service';
 import { ProfileMediaService } from '../profile-media/profile-media.service';
@@ -232,117 +230,6 @@ export class UsersService {
 
     const totalPages = Math.ceil(total / limit);
 
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrevious: page > 1,
-      },
-    };
-  }
-
-  getOwnerOptions(user: CurrentUserPayload) {
-    return this.prisma.user.findMany({
-      where: {
-        organizationId: getCurrentOrganizationId(user),
-        isActive: true,
-        role: { in: [UserRole.REP, UserRole.MANAGER] },
-      },
-      select: ownerOptionSelect,
-      orderBy: [{ fullName: 'asc' }, { email: 'asc' }],
-    });
-  }
-
-  async findOwnerOptions(user: CurrentUserPayload, query: FindOwnerOptionsDto) {
-    const organizationId = getCurrentOrganizationId(user);
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 25;
-    const search = query.search?.trim();
-
-    if (query.teamId) {
-      const team = await this.prisma.team.findFirst({
-        where: { id: query.teamId, organizationId, isActive: true },
-        select: { id: true },
-      });
-      if (!team) throw new NotFoundException('Team not found');
-    }
-
-    const where: Prisma.UserWhereInput = {
-      organizationId,
-      isActive: true,
-      role: { in: [UserRole.REP, UserRole.MANAGER] },
-      ...(query.teamId && { teamId: query.teamId }),
-    };
-    if (query.selectedId) {
-      where.id = query.selectedId;
-    } else if (search) {
-      where.OR = [
-        { fullName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [data, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where,
-        select: ownerOptionSelect,
-        orderBy: [{ fullName: 'asc' }, { email: 'asc' }, { id: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.user.count({ where }),
-    ]);
-    const totalPages = Math.ceil(total / limit);
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrevious: page > 1,
-      },
-    };
-  }
-
-  async findAssigneeOptions(
-    user: CurrentUserPayload,
-    query: FindAssigneeOptionsDto,
-  ) {
-    const page = query.page ?? 1,
-      limit = query.limit ?? 25,
-      search = query.search?.trim();
-    const where: Prisma.UserWhereInput = {
-      organizationId: getCurrentOrganizationId(user),
-      isActive: true,
-      ...(query.teamId && { teamId: query.teamId }),
-      ...(query.selectedId
-        ? { id: query.selectedId }
-        : search
-          ? {
-              OR: [
-                { fullName: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-    };
-    const [data, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where,
-        select: ownerOptionSelect,
-        orderBy: [{ fullName: 'asc' }, { email: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.user.count({ where }),
-    ]);
-    const totalPages = Math.ceil(total / limit);
     return {
       data,
       meta: {
