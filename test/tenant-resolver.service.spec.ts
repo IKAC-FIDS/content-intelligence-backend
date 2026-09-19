@@ -282,20 +282,62 @@ describe('TenantResolverService', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('rejects cross-Organization or inactive Membership Teams', async () => {
+  it.each([
+    { state: 'stale', teamId: 'missing-team', team: null },
+    {
+      state: 'inactive',
+      teamId: 'team-a',
+      team: { ...membership().team, isActive: false },
+    },
+    {
+      state: 'cross-Organization',
+      teamId: 'team-a',
+      team: { ...membership().team, organizationId: 'org-b' },
+    },
+  ])('resolves the Tenant independently of a $state Membership Team', async ({ state, teamId, team }) => {
     const { prisma, service } = setup();
+    // Isolate the permission cache so each case verifies the roleId lookup.
+    const membershipId = `membership-team-independent-${state}`;
     prisma.organizationMembership.findUnique.mockResolvedValue(
       membership({
-        team: { ...membership().team, organizationId: 'org-b' },
-      }),
-    );
-    await expect(
-      service.resolveAuthenticatedTenant(user.id, {
-        claims: {
-          activeOrganizationId: 'org-a',
-          membershipId: 'membership-a',
+        id: membershipId,
+        teamId,
+        team,
+        role: {
+          ...membership().role,
+          scope: 'TENANT',
+          organizationId: 'org-a',
         },
       }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    );
+    prisma.rolePermission.findMany.mockResolvedValue([
+      { permission: { action: 'content:view', isActive: true } },
+    ]);
+
+    const context = await service.resolveAuthenticatedTenant(user.id, {
+      claims: { activeOrganizationId: 'org-a', membershipId },
+    });
+
+    expect(context).toMatchObject({
+      organizationId: 'org-a',
+      membershipId,
+      role: UserRole.MANAGER,
+      roleId: 'role-a',
+      permissions: ['content:view'],
+    });
+    for (const field of ['team', 'teamId', 'teamCode', 'teamName']) {
+      expect(context).not.toHaveProperty(field);
+    }
+    expect(prisma.organizationMembership.findUnique).toHaveBeenCalledWith({
+      where: { id: membershipId },
+      include: {
+        organization: expect.any(Object),
+        role: expect.any(Object),
+      },
+    });
+    expect(prisma.rolePermission.findMany).toHaveBeenCalledWith({
+      where: { roleId: 'role-a', permission: { isActive: true } },
+      select: { permission: { select: { action: true } } },
+    });
   });
 });
