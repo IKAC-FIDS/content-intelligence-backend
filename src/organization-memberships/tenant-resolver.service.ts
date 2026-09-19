@@ -9,13 +9,14 @@ import {
   OrganizationStatus,
   UserRole,
 } from '@prisma/client';
+import NodeCache from 'node-cache';
+
 import { AuditLogService } from '../audit-log/audit-log.service';
 import type {
   TenantContext,
   TenantResolutionSource,
 } from '../common/tenant/tenant-context.types';
 import { PrismaService } from '../prisma/prisma.service';
-import NodeCache from 'node-cache';
 
 const permissionCache = new NodeCache({ stdTTL: 600, useClones: false });
 
@@ -27,10 +28,6 @@ export interface TenantClaimPair {
 export interface ResolvedTenantContext extends TenantContext {
   readonly role: UserRole;
   readonly roleId: string | null;
-  readonly team: string | null;
-  readonly teamId: string | null;
-  readonly teamCode: string | null;
-  readonly teamName: string | null;
 }
 
 type ResolutionOptions = {
@@ -38,7 +35,9 @@ type ResolutionOptions = {
   requestId?: string | null;
 };
 
-type MembershipRow = Awaited<ReturnType<TenantResolverService['findMembership']>>;
+type MembershipRow = Awaited<
+  ReturnType<TenantResolverService['findMembership']>
+>;
 
 @Injectable()
 export class TenantResolverService {
@@ -55,11 +54,7 @@ export class TenantResolverService {
   ): Promise<ResolvedTenantContext> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        isActive: true,
-        role: true,
-      },
+      select: { id: true, isActive: true, role: true },
     });
 
     if (!user?.isActive) {
@@ -69,6 +64,7 @@ export class TenantResolverService {
 
     const activeOrganizationId = options.claims?.activeOrganizationId ?? null;
     const membershipId = options.claims?.membershipId ?? null;
+
     if (Boolean(activeOrganizationId) !== Boolean(membershipId)) {
       await this.recordRejection('PARTIAL_TENANT_CLAIMS', userId, options.requestId);
       throw new UnauthorizedException('Invalid tenant session context');
@@ -77,11 +73,7 @@ export class TenantResolverService {
     if (activeOrganizationId && membershipId) {
       const membership = await this.findMembership(membershipId);
       return this.buildContext(
-        user,
-        membership,
-        activeOrganizationId,
-        'token-session',
-        options.requestId,
+        user, membership, activeOrganizationId, 'token-session', options.requestId,
       );
     }
 
@@ -94,11 +86,13 @@ export class TenantResolverService {
       include: this.membershipInclude,
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
+
     const defaults = memberships.filter((membership) => membership.isDefault);
     if (defaults.length > 1 || (defaults.length === 0 && memberships.length > 1)) {
       await this.recordRejection('AMBIGUOUS_ACTIVE_MEMBERSHIPS', userId, options.requestId);
       throw new ForbiddenException('Tenant selection is required');
     }
+
     const selected = defaults[0] ?? (memberships.length === 1 ? memberships[0] : null);
     if (!selected) {
       await this.recordRejection('NO_ACTIVE_MEMBERSHIP', userId, options.requestId);
@@ -108,6 +102,7 @@ export class TenantResolverService {
     this.logger.warn(
       `Tenant compatibility resolution used userId=${userId} membershipId=${selected.id} requestId=${options.requestId ?? 'none'}`,
     );
+
     await this.audit.record({
       actorId: userId,
       organizationId: selected.organizationId,
@@ -117,12 +112,9 @@ export class TenantResolverService {
       requestId: options.requestId,
       metadata: { source: 'active-default-or-sole-membership' },
     });
+
     return this.buildContext(
-      user,
-      selected,
-      selected.organizationId,
-      'migration-compatibility',
-      options.requestId,
+      user, selected, selected.organizationId, 'migration-compatibility', options.requestId,
     );
   }
 
@@ -135,6 +127,7 @@ export class TenantResolverService {
       where: { id: userId },
       select: { id: true, isActive: true, role: true },
     });
+
     if (!user?.isActive) {
       await this.recordRejection('SWITCH_INACTIVE_USER', userId, requestId);
       throw new ForbiddenException('Tenant selection is not permitted');
@@ -144,13 +137,10 @@ export class TenantResolverService {
       where: { userId_organizationId: { userId, organizationId } },
       include: this.membershipInclude,
     });
+
     try {
       return await this.buildContext(
-        user,
-        membership,
-        organizationId,
-        'explicit-selection',
-        requestId,
+        user, membership, organizationId, 'explicit-selection', requestId,
       );
     } catch {
       await this.recordRejection('SWITCH_NOT_ELIGIBLE', userId, requestId);
@@ -159,14 +149,15 @@ export class TenantResolverService {
   }
 
   private readonly membershipInclude = {
-    organization: { select: { id: true, status: true, authorizationVersion: true } },
-    role: { select: { id: true, baseRole: true, isActive: true, scope: true, organizationId: true } },
-    team: {
+    organization: {
+      select: { id: true, status: true, authorizationVersion: true },
+    },
+    role: {
       select: {
         id: true,
-        code: true,
-        name: true,
+        baseRole: true,
         isActive: true,
+        scope: true,
         organizationId: true,
       },
     },
@@ -197,38 +188,43 @@ export class TenantResolverService {
       await this.recordRejection('INVALID_TENANT_MEMBERSHIP', user.id, requestId);
       throw new UnauthorizedException('Invalid tenant session context');
     }
+
     if (membership.role && !membership.role.isActive) {
       await this.recordRejection('INACTIVE_MEMBERSHIP_ROLE', user.id, requestId);
       throw new UnauthorizedException('Invalid tenant session context');
     }
+
     if (!membership.roleId || !membership.role) {
       await this.recordRejection('MISSING_MEMBERSHIP_ROLE', user.id, requestId);
       throw new UnauthorizedException('Invalid tenant session context');
     }
+
     if (
-      (membership.role.scope === 'TENANT' && membership.role.organizationId !== membership.organizationId) ||
-      (membership.role.scope === 'SYSTEM' && membership.role.organizationId !== null)
+      (membership.role.scope === 'TENANT' &&
+        membership.role.organizationId !== membership.organizationId) ||
+      (membership.role.scope === 'SYSTEM' &&
+        membership.role.organizationId !== null)
     ) {
       await this.recordRejection('CROSS_TENANT_MEMBERSHIP_ROLE', user.id, requestId);
       throw new UnauthorizedException('Invalid tenant session context');
     }
-    if (
-      membership.team &&
-      (!membership.team.isActive ||
-        membership.team.organizationId !== membership.organizationId)
-    ) {
-      await this.recordRejection('INVALID_MEMBERSHIP_TEAM', user.id, requestId);
-      throw new UnauthorizedException('Invalid tenant session context');
-    }
 
     const role = membership.role.baseRole;
-    const cacheKey = `tenant-authz:${membership.organizationId}:${user.id}:${membership.id}:${membership.organization.authorizationVersion}`;
+    const cacheKey =
+      `tenant-authz:${membership.organizationId}:${user.id}:` +
+      `${membership.id}:${membership.organization.authorizationVersion}`;
+
     let permissions = permissionCache.get<string[]>(cacheKey);
+
     if (!permissions) {
       const permissionRows = await this.prisma.rolePermission.findMany({
-        where: { roleId: membership.roleId, permission: { isActive: true } },
+        where: {
+          roleId: membership.roleId,
+          permission: { isActive: true },
+        },
         select: { permission: { select: { action: true } } },
       });
+
       permissions = [...new Set(permissionRows.map((row) => row.permission.action))];
       permissionCache.set(cacheKey, permissions);
     }
@@ -247,10 +243,6 @@ export class TenantResolverService {
       requestId: requestId ?? null,
       role,
       roleId: membership.roleId,
-      team: membership.team?.code ?? null,
-      teamId: membership.teamId,
-      teamCode: membership.team?.code ?? null,
-      teamName: membership.team?.name ?? null,
     };
   }
 
@@ -262,6 +254,7 @@ export class TenantResolverService {
     this.logger.warn(
       `Tenant resolution rejected reason=${reason} userId=${userId} requestId=${requestId ?? 'none'}`,
     );
+
     try {
       await this.audit.record({
         actorId: userId,

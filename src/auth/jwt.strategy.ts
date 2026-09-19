@@ -11,10 +11,6 @@ interface JwtPayload {
   sub?: string;
   email?: string;
   role?: string;
-  team?: string | null;
-  teamId?: string | null;
-  teamCode?: string | null;
-  teamName?: string | null;
   organizationId?: string | null;
   activeOrganizationId?: string | null;
   membershipId?: string | null;
@@ -67,10 +63,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: payload.email,
       role: effective.role,
       roleId: effective.roleId,
-      team: effective.team,
-      teamId: effective.teamId,
-      teamCode: effective.teamCode,
-      teamName: effective.teamName,
       organizationId: effective.organizationId,
       activeOrganizationId: effective.organizationId,
       membershipId: effective.membershipId,

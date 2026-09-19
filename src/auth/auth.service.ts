@@ -27,10 +27,6 @@ export interface AuthUserResponse {
   fullName: string;
   email: string;
   role: UserRole;
-  team: string | null;
-  teamId: string | null;
-  teamCode: string | null;
-  teamName: string | null;
   organizationId: string | null;
   permissions: string[];
   roleId: string | null;
@@ -251,10 +247,6 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: effectiveRole,
-      team: effective?.team ?? null,
-      teamId: effective?.teamId ?? null,
-      teamCode: effective?.teamCode ?? null,
-      teamName: effective?.teamName ?? null,
       ...(effective && {
         organizationId: effective.organizationId,
         activeOrganizationId: effective.organizationId,
@@ -272,10 +264,6 @@ export class AuthService {
         fullName: user.fullName,
         email: user.email,
         role: effectiveRole,
-        team: effective?.team ?? null,
-        teamId: effective?.teamId ?? null,
-        teamCode: effective?.teamCode ?? null,
-        teamName: effective?.teamName ?? null,
         organizationId: effective?.organizationId ?? null,
         permissions: effective ? [...effective.permissions] : [],
         roleId: assignedRole?.id ?? null,

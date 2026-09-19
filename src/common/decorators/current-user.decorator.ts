@@ -7,10 +7,11 @@ export interface CurrentUserPayload {
   email: string;
   role: 'ADMIN' | 'MANAGER' | 'REP' | 'BOARDS';
   roleId?: string | null;
+
+  // Temporary compatibility for detached legacy CRM modules.
   team?: string | null;
   teamId?: string | null;
-  teamCode?: string | null;
-  teamName?: string | null;
+
   organizationId?: string | null;
   activeOrganizationId?: string | null;
   membershipId?: string | null;
