@@ -34,4 +34,16 @@ describe('TenantRbacService fix 000091', () => {
     await expect(new TenantRbacService(prisma).update('system-role', { name: 'changed' }, tenant, 'actor-a')).rejects.toThrow('Role not found');
     expect(tx.role.findFirst).toHaveBeenCalledWith({ where: { id: 'system-role', scope: RoleScope.TENANT, organizationId: 'org-a' } });
   });
+
+  it('does not leave an active tenant owner without a role', async () => {
+    const tx: any = {
+      organizationMembership: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'owner-membership', roleId: 'admin-role', isTenantOwner: true, status: 'ACTIVE' }),
+        update: jest.fn(),
+      },
+    };
+    const prisma: any = { $transaction: (callback: any) => callback(tx) };
+    await expect(new TenantRbacService(prisma).revoke('owner-membership', tenant, 'actor-a')).rejects.toThrow('must retain a role assignment');
+    expect(tx.organizationMembership.update).not.toHaveBeenCalled();
+  });
 });

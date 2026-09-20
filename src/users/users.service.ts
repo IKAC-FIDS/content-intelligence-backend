@@ -18,6 +18,7 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { OrganizationMembershipsService } from '../organization-memberships/organization-memberships.service';
 import { QuotaService } from '../quota/quota.service';
 import { ProfileMediaService } from '../profile-media/profile-media.service';
+import { resolveMembershipRole } from '../organization-memberships/membership-role-assignment';
 
 const safeUserSelect = {
   id: true,
@@ -127,13 +128,15 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, actor?: CurrentUserPayload) {
+    if (!actor) throw new BadRequestException('Tenant context is required to create a user');
+    if (!dto.role && !dto.roleId) throw new BadRequestException('role or roleId is required');
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const teamAssignment = await this.resolveTeamAssignment(
       dto.teamId,
       dto.team,
       actor,
     );
-    const organizationId = actor ? getCurrentOrganizationId(actor) : null;
+    const organizationId = getCurrentOrganizationId(actor);
     const reservation = organizationId
       ? await this.quota.reserve(
           organizationId,
@@ -149,18 +152,20 @@ export class UsersService {
     let user;
     try {
       user = await this.prisma.$transaction(async (tx) => {
+        const assignedRole = await resolveMembershipRole(tx, organizationId, { roleId: dto.roleId, legacyRole: dto.role });
         const created = await tx.user.create({
           data: {
             fullName: dto.fullName,
             email: dto.email,
             passwordHash,
-            role: dto.role,
+            role: assignedRole.baseRole,
+            roleId: assignedRole.id,
             team: teamAssignment.team,
             teamId: teamAssignment.teamId,
-            organizationId: actor ? getCurrentOrganizationId(actor) : undefined,
+            organizationId,
           },
         });
-        await this.memberships.createInitialMembership(tx, created);
+        await this.memberships.createInitialMembership(tx, created, assignedRole.id);
         return tx.user.findUniqueOrThrow({
           where: { id: created.id },
           select: safeUserSelect,
@@ -372,25 +377,6 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const assignedRole = dto.roleId
-      ? await this.prisma.role.findFirst({
-          where: { id: dto.roleId, isActive: true },
-          include: { permissions: { include: { permission: true } } },
-        })
-      : null;
-    if (dto.roleId && !assignedRole)
-      throw new BadRequestException('Role does not exist or is inactive');
-    const nextBaseRole = assignedRole?.baseRole ?? dto.role ?? user.role;
-    if (actor?.userId === id && user.role === UserRole.ADMIN && assignedRole) {
-      const actions = new Set(
-        assignedRole.permissions.map((item) => item.permission.action),
-      );
-      if (!actions.has('permission:manage') || !actions.has('role:manage'))
-        throw new BadRequestException(
-          'You cannot remove your own RBAC management access',
-        );
-    }
-
     const teamAssignment = await this.resolveTeamAssignment(
       dto.teamId,
       dto.team,
@@ -401,45 +387,37 @@ export class UsersService {
       },
     );
 
-    if (
-      nextBaseRole === UserRole.MANAGER &&
-      user.ownedCompanies.length > 0 &&
-      !teamAssignment.teamId &&
-      !teamAssignment.team
-    ) {
-      throw new BadRequestException(
-        'A manager with owned companies must have a team',
-      );
-    }
-
-    const nextRoleId = assignedRole?.id ?? (dto.role ? null : user.roleId);
     const updatedUser = await this.prisma.$transaction(async (tx) => {
+      const assignedRole = await resolveMembershipRole(tx, organizationId ?? user.organizationId, { roleId: dto.roleId, legacyRole: dto.role });
+      const nextBaseRole = assignedRole.baseRole;
+      if (nextBaseRole === UserRole.MANAGER && user.ownedCompanies.length > 0 && !teamAssignment.teamId && !teamAssignment.team) {
+        throw new BadRequestException('A manager with owned companies must have a team');
+      }
+      if (actor?.userId === id && user.role === UserRole.ADMIN) {
+        const grants = await tx.rolePermission.findMany({ where: { roleId: assignedRole.id, permission: { isActive: true } }, select: { permission: { select: { action: true } } } });
+        const actions = new Set(grants.map((item) => item.permission.action));
+        if (!actions.has('permission:manage') || !actions.has('role:manage')) throw new BadRequestException('You cannot remove your own RBAC management access');
+      }
+      await this.memberships.syncDefaultAssignment(tx, id, organizationId ?? user.organizationId, assignedRole.id, teamAssignment.teamId);
       const result = await tx.user.update({
         where: { id },
         data: {
           role: nextBaseRole,
-          roleId: nextRoleId,
+          roleId: assignedRole.id,
           team: teamAssignment.team,
           teamId: teamAssignment.teamId,
         },
         select: safeUserSelect,
       });
-      await this.memberships.syncDefaultAssignment(
-        tx,
-        id,
-        user.organizationId,
-        nextRoleId,
-        teamAssignment.teamId,
-      );
       await tx.organization.update({
-        where: { id: user.organizationId },
+        where: { id: organizationId ?? user.organizationId },
         data: { authorizationVersion: { increment: 1 } },
       });
-      return result;
+      return { result, assignedRole };
     });
 
-    PermissionsGuard.clearCache(nextBaseRole);
-    if (assignedRole) PermissionsGuard.clearCache(`role:${assignedRole.id}`);
+    PermissionsGuard.clearCache(updatedUser.assignedRole.baseRole);
+    PermissionsGuard.clearCache(`role:${updatedUser.assignedRole.id}`);
     PermissionsGuard.clearCache(user.role);
 
     await this.audit.record({
@@ -449,10 +427,10 @@ export class UsersService {
       entityId: id,
       action: 'user.role_changed',
       before: user,
-      after: updatedUser,
+      after: updatedUser.result,
     });
 
-    return updatedUser;
+    return updatedUser.result;
   }
 
   async resetPassword(

@@ -9,6 +9,8 @@ import {
   OrganizationOnboardingStatus,
   OrganizationStatus,
   Prisma,
+  RoleScope,
+  UserRole,
 } from '@prisma/client';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { getCurrentOrganizationId } from '../common/tenant/tenant-scope.util';
@@ -18,6 +20,7 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { FindOrganizationsDto } from './dto/find-organizations.dto';
 import { ProvisionOrganizationDto } from './dto/provision-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { resolveMembershipRole } from '../organization-memberships/membership-role-assignment';
 
 const LIFECYCLE_TRANSITIONS: Readonly<Record<OrganizationStatus, readonly OrganizationStatus[]>> = {
   PENDING_SETUP: [OrganizationStatus.ACTIVE, OrganizationStatus.ARCHIVED],
@@ -163,6 +166,7 @@ export class OrganizationsService {
         }
         const owner = await tx.user.findUnique({ where: { id: dto.ownerUserId }, select: { id: true, isActive: true } });
         if (!owner?.isActive) throw new BadRequestException('Tenant Owner must be an active User');
+        const ownerRole = await resolveMembershipRole(tx, id, { legacyRole: UserRole.ADMIN });
         await tx.organization.update({
           where: { id },
           data: {
@@ -182,8 +186,8 @@ export class OrganizationsService {
         });
         const membership = await tx.organizationMembership.upsert({
           where: { userId_organizationId: { userId: owner.id, organizationId: id } },
-          create: { userId: owner.id, organizationId: id, teamId: team.id, status: OrganizationMembershipStatus.ACTIVE, isTenantOwner: true, joinedAt: attemptAt, isDefault: false },
-          update: { status: OrganizationMembershipStatus.ACTIVE, isTenantOwner: true, joinedAt: attemptAt, teamId: team.id, suspendedAt: null },
+          create: { userId: owner.id, organizationId: id, roleId: ownerRole.id, teamId: team.id, status: OrganizationMembershipStatus.ACTIVE, isTenantOwner: true, joinedAt: attemptAt, isDefault: false },
+          update: { roleId: ownerRole.id, status: OrganizationMembershipStatus.ACTIVE, isTenantOwner: true, joinedAt: attemptAt, teamId: team.id, suspendedAt: null },
         });
         const ready = await tx.organization.update({
           where: { id },
@@ -237,7 +241,20 @@ export class OrganizationsService {
       throw new ConflictException('Organization onboarding is not ready');
     }
     const owners = await tx.organizationMembership.count({
-      where: { organizationId: organization.id, isTenantOwner: true, status: OrganizationMembershipStatus.ACTIVE, user: { isActive: true } },
+      where: {
+        organizationId: organization.id,
+        isTenantOwner: true,
+        status: OrganizationMembershipStatus.ACTIVE,
+        roleId: { not: null },
+        role: {
+          isActive: true,
+          OR: [
+            { scope: RoleScope.SYSTEM, organizationId: null },
+            { scope: RoleScope.TENANT, organizationId: organization.id },
+          ],
+        },
+        user: { isActive: true },
+      },
     });
     if (owners < 1) throw new ConflictException('An active Tenant Owner is required');
   }

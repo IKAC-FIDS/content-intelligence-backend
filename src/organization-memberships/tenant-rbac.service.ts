@@ -85,6 +85,7 @@ export class TenantRbacService {
     return this.prisma.$transaction(async (tx) => {
       const membership = await tx.organizationMembership.findFirst({ where: { id: membershipId, organizationId: tenant.organizationId } });
       if (!membership) throw new NotFoundException('Membership not found');
+      if (membership.isTenantOwner && membership.status === 'ACTIVE') throw new ConflictException('An active tenant owner must retain a role assignment');
       const updated = await tx.organizationMembership.update({ where: { id: membershipId }, data: { roleId: null } });
       await this.bumpAndAudit(tx, tenant.organizationId, actorId, 'membership-role.revoked', membershipId, { roleId: membership.roleId }, { roleId: null });
       return updated;

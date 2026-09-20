@@ -4,6 +4,8 @@ import {
   OrganizationOnboardingStatus,
   OrganizationStatus,
   PlatformRole,
+  RoleScope,
+  UserRole,
 } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -78,6 +80,7 @@ describe('fix 000089 Organization lifecycle and onboarding', () => {
           .mockResolvedValueOnce(organization({ onboardingStatus: OrganizationOnboardingStatus.READY })),
       },
       user: { findUnique: jest.fn().mockResolvedValue({ id: 'owner-1', isActive: true }) },
+      role: { findMany: jest.fn().mockResolvedValue([{ id: 'system-admin', baseRole: UserRole.ADMIN, scope: RoleScope.SYSTEM, organizationId: null }]) },
       team: { upsert: jest.fn().mockResolvedValue({ id: 'team-1' }) },
       organizationMembership: { upsert: jest.fn().mockResolvedValue({ id: 'membership-1' }) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
@@ -88,9 +91,27 @@ describe('fix 000089 Organization lifecycle and onboarding', () => {
     expect(tx.organizationMembership.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId_organizationId: { userId: 'owner-1', organizationId: 'org-a' } },
       create: expect.objectContaining({ organizationId: 'org-a', isTenantOwner: true, status: OrganizationMembershipStatus.ACTIVE, isDefault: false }),
-      update: expect.objectContaining({ isTenantOwner: true, status: OrganizationMembershipStatus.ACTIVE }),
+      update: expect.objectContaining({ roleId: 'system-admin', isTenantOwner: true, status: OrganizationMembershipStatus.ACTIVE }),
     }));
+    expect(tx.organizationMembership.upsert.mock.calls[0][0].create.roleId).toBe('system-admin');
     expect(tx.team.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails provisioning atomically when the owner SYSTEM ADMIN role is unavailable', async () => {
+    const tx: any = {
+      $queryRaw: jest.fn().mockResolvedValue([{ lockResult: '' }]),
+      organization: { findUnique: jest.fn().mockResolvedValue(organization()), update: jest.fn() },
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'owner-1', isActive: true }) },
+      role: { findMany: jest.fn().mockResolvedValue([]) },
+      team: { upsert: jest.fn() },
+      organizationMembership: { upsert: jest.fn() },
+      auditLog: { create: jest.fn() },
+    };
+    const prisma: any = { $transaction: jest.fn((callback) => callback(tx)), organization: { updateMany: jest.fn() }, auditLog: { create: jest.fn() } };
+    const service = new OrganizationsService(prisma);
+    await expect(service.provision('org-a', { ownerUserId: 'owner-1', defaultTeamCode: 'default', defaultTeamName: 'Default Team' }, platform)).rejects.toThrow('Exactly one active SYSTEM ADMIN role is required');
+    expect(tx.team.upsert).not.toHaveBeenCalled();
+    expect(tx.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it('requires READY onboarding and an active Owner before activation', async () => {

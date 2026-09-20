@@ -164,13 +164,14 @@ export class OrganizationMembershipsService {
   async createInitialMembership(
     tx: Prisma.TransactionClient,
     user: Pick<User, 'id' | 'organizationId' | 'roleId' | 'teamId' | 'createdAt' | 'lastLoginAt'>,
+    roleId: string,
   ) {
     await this.assertTeamOrganization(tx, user.teamId, user.organizationId);
     return tx.organizationMembership.create({
       data: {
         userId: user.id,
         organizationId: user.organizationId,
-        roleId: user.roleId,
+        roleId,
         teamId: user.teamId,
         status: OrganizationMembershipStatus.ACTIVE,
         isDefault: true,
