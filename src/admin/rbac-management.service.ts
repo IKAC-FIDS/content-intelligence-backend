@@ -3,6 +3,7 @@ import { RoleScope, UserRole } from '@prisma/client';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateManagedPermissionDto, CreateRoleDto, ReplaceRolePermissionsDto, UpdateManagedPermissionDto, UpdateRoleDto } from './dto/rbac-management.dto';
+import { incrementAuthorizationVersionsForRoleIds } from './authorization-version';
 
 const ADMIN_REQUIRED = ['permission:manage', 'role:manage'];
 @Injectable()
@@ -11,8 +12,33 @@ export class RbacManagementService {
   permissions() { return this.prisma.permission.findMany({ orderBy: [{ group: 'asc' }, { action: 'asc' }] }); }
   async permission(id: string) { const item = await this.prisma.permission.findUnique({ where: { id } }); if (!item) throw new NotFoundException('Permission not found'); return item; }
   async createPermission(dto: CreateManagedPermissionDto) { try { return await this.prisma.permission.create({ data: { ...dto, isSystem: false, isActive: dto.isActive ?? true } }); } catch { throw new ConflictException('Permission action already exists'); } }
-  async updatePermission(id: string, dto: UpdateManagedPermissionDto) { const current = await this.permission(id); if (current.isSystem && dto.action && dto.action !== current.action) throw new ForbiddenException('System permission action cannot be changed'); if (current.isSystem && ADMIN_REQUIRED.includes(current.action) && dto.isActive === false) throw new ForbiddenException('Critical RBAC permissions cannot be deactivated'); try { const updated = await this.prisma.permission.update({ where: { id }, data: dto }); PermissionsGuard.clearCache(); return updated; } catch { throw new ConflictException('Permission action already exists'); } }
-  async deletePermission(id: string) { const current = await this.permission(id); if (current.isSystem) throw new ForbiddenException('System permissions cannot be deleted'); const assigned = await this.prisma.rolePermission.count({ where: { permissionId: id } }); if (assigned) throw new ConflictException('Permission is assigned to one or more roles'); return this.prisma.permission.delete({ where: { id } }); }
+  async updatePermission(id: string, dto: UpdateManagedPermissionDto) {
+    const current = await this.permission(id);
+    if (current.isSystem && dto.action && dto.action !== current.action) throw new ForbiddenException('System permission action cannot be changed');
+    if (current.isSystem && ADMIN_REQUIRED.includes(current.action) && dto.isActive === false) throw new ForbiddenException('Critical RBAC permissions cannot be deactivated');
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const grants = await tx.rolePermission.findMany({ where: { permissionId: id, roleId: { not: null } }, select: { roleId: true } });
+        const result = await tx.permission.update({ where: { id }, data: dto });
+        await incrementAuthorizationVersionsForRoleIds(tx, grants.map((grant) => grant.roleId));
+        return result;
+      });
+      PermissionsGuard.clearCache();
+      return updated;
+    } catch { throw new ConflictException('Permission action already exists'); }
+  }
+  async deletePermission(id: string) {
+    const current = await this.permission(id);
+    if (current.isSystem) throw new ForbiddenException('System permissions cannot be deleted');
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const grants = await tx.rolePermission.findMany({ where: { permissionId: id, roleId: { not: null } }, select: { roleId: true } });
+      const result = await tx.permission.delete({ where: { id } });
+      await incrementAuthorizationVersionsForRoleIds(tx, grants.map((grant) => grant.roleId));
+      return result;
+    });
+    PermissionsGuard.clearCache();
+    return deleted;
+  }
 
   roles() { return this.prisma.role.findMany({ where: { scope: RoleScope.SYSTEM, organizationId: null }, include: { _count: { select: { users: true, permissions: true } } }, orderBy: { code: 'asc' } }); }
   async role(id: string) { const item = await this.prisma.role.findFirst({ where: { id, scope: RoleScope.SYSTEM, organizationId: null }, include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } } }); if (!item) throw new NotFoundException('Role not found'); return item; }

@@ -78,6 +78,7 @@ describe('Stage 5.4-A RBAC authority boundaries', () => {
     },
     rolePermission: {
       count: jest.fn(async ({ where }) => grants.filter(row => matches(row, where)).length),
+      findMany: jest.fn(async ({ where }) => grants.filter(row => matches(row, where))),
       deleteMany: jest.fn(async ({ where }) => {
         const retained = grants.filter(row => !matches(row, where)); const count = grants.length - retained.length;
         grants.splice(0, grants.length, ...retained); return { count };
@@ -90,6 +91,7 @@ describe('Stage 5.4-A RBAC authority boundaries', () => {
     },
     organizationMembership: {
       findFirst: jest.fn(async ({ where }) => [...memberships.values()].find(row => matches(row, where)) ?? null),
+      findMany: jest.fn(async ({ where }) => [...memberships.values()].filter(row => matches(row, where))),
       count: jest.fn(async () => 0),
       update: jest.fn(async ({ where, data }) => { const row = memberships.get(where.id); Object.assign(row, data); return row; }),
     },
