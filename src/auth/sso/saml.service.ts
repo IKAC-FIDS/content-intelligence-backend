@@ -21,6 +21,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { AuditLogService } from "../../audit-log/audit-log.service";
 import { SsoTicketService } from "./sso-ticket.service";
 import { createHash } from "crypto";
+import { hasUsableMembershipRole, resolveSsoMappedRole } from './sso-membership-role';
 
 type SamlProfile = Record<string, unknown> & {
   nameID?: string;
@@ -364,11 +365,8 @@ export class SamlService {
       groups: string[];
     },
   ) {
-    const mappedRoleId = await this.mappedRole(
-      this.prisma,
-      provider.id,
-      input.groups,
-    );
+    if (!provider.organizationId) throw new BadRequestException('Provider tenant ownership is incomplete');
+    const mappedRole = await resolveSsoMappedRole(this.prisma, provider.id, provider.organizationId, input.groups);
     const existingIdentity = await this.prisma.externalIdentity.findUnique({
       where: {
         providerId_subject: {
@@ -390,7 +388,7 @@ export class SamlService {
         provider,
         existingIdentity.user.id,
         false,
-        mappedRoleId,
+        mappedRole?.id ?? null,
       );
       return existingIdentity.user;
     }
@@ -410,7 +408,7 @@ export class SamlService {
         provider,
         existingUser.id,
         provider.autoProvision,
-        mappedRoleId,
+        mappedRole?.id ?? null,
       );
       await this.prisma.externalIdentity.create({
         data: {
@@ -428,6 +426,7 @@ export class SamlService {
     }
 
     this.assertAllowedDomain(provider, input.email);
+    if (!mappedRole) throw new BadRequestException('SSO role mapping is required');
 
     const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 12);
 
@@ -447,7 +446,7 @@ export class SamlService {
         data: {
           userId: user.id,
           organizationId: provider.organizationId!,
-          roleId: mappedRoleId,
+          roleId: mappedRole.id,
           status: OrganizationMembershipStatus.ACTIVE,
           isDefault: false,
           joinedAt: new Date(),
@@ -485,22 +484,6 @@ export class SamlService {
     ];
   }
 
-  private async mappedRole(
-    tx: Pick<Prisma.TransactionClient, "ssoGroupRoleMapping">,
-    providerId: string,
-    groups: string[],
-  ) {
-    if (!groups.length) return null;
-    const mappings = await tx.ssoGroupRoleMapping.findMany({
-      where: { providerId, normalizedGroup: { in: groups } },
-      select: { roleId: true },
-    });
-    const roles = [...new Set(mappings.map((item) => item.roleId))];
-    if (roles.length > 1)
-      throw new BadRequestException("Conflicting SSO group mappings");
-    return roles[0] ?? null;
-  }
-
   private async assertOrCreateMembership(
     provider: SsoProvider,
     userId: string,
@@ -516,21 +499,27 @@ export class SamlService {
           organizationId: provider.organizationId,
         },
       },
+      include: { role: { select: { isActive: true, scope: true, organizationId: true } } },
     });
-    if (membership?.status !== OrganizationMembershipStatus.ACTIVE) {
-      if (membership || !allowCreate)
-        throw new BadRequestException("SSO membership is inactive or missing");
-      await this.prisma.organizationMembership.create({
-        data: {
-          userId,
-          organizationId: provider.organizationId,
-          roleId,
-          status: OrganizationMembershipStatus.ACTIVE,
-          isDefault: false,
-          joinedAt: new Date(),
-        },
-      });
+    if (membership && membership.status !== OrganizationMembershipStatus.ACTIVE) throw new BadRequestException("SSO membership is inactive or missing");
+    if (membership) {
+      if (hasUsableMembershipRole(membership, provider.organizationId)) return;
+      if (!roleId) throw new BadRequestException('SSO membership has no usable role assignment');
+      await this.prisma.organizationMembership.update({ where: { id: membership.id }, data: { roleId } });
+      return;
     }
+    if (!allowCreate) throw new BadRequestException("SSO membership is inactive or missing");
+    if (!roleId) throw new BadRequestException('SSO role mapping is required');
+    await this.prisma.organizationMembership.create({
+      data: {
+        userId,
+        organizationId: provider.organizationId,
+        roleId,
+        status: OrganizationMembershipStatus.ACTIVE,
+        isDefault: false,
+        joinedAt: new Date(),
+      },
+    });
   }
 
   private async consumeState(state: string) {

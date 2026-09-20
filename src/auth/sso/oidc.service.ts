@@ -21,6 +21,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { SsoNetworkSecurityService } from "./sso-network-security.service";
 import { SsoSecretService } from "./sso-secret.service";
 import { SsoTicketService } from "./sso-ticket.service";
+import { hasUsableMembershipRole, resolveSsoMappedRole } from './sso-membership-role';
 
 type Identity = {
   subject: string;
@@ -194,10 +195,10 @@ export class OidcService {
       );
     const organizationId = provider.organizationId;
     this.allowedDomain(identity.email, provider.allowedDomains);
-    const roleId = await this.mappedRole(provider.id, identity.groups);
     const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 10);
     return this.prisma.$transaction(
       async (tx) => {
+        const mappedRole = await resolveSsoMappedRole(tx, provider.id, organizationId, identity.groups);
         const linked = await tx.externalIdentity.findUnique({
           where: {
             providerId_subject: {
@@ -227,6 +228,7 @@ export class OidcService {
           });
         const membership = await tx.organizationMembership.findUnique({
           where: { userId_organizationId: { userId: user.id, organizationId } },
+          include: { role: { select: { isActive: true, scope: true, organizationId: true } } },
         });
         if (
           membership &&
@@ -238,16 +240,20 @@ export class OidcService {
             throw new UnauthorizedException(
               "SSO membership is not provisioned",
             );
+          if (!mappedRole) throw new UnauthorizedException('SSO role mapping is required');
           await tx.organizationMembership.create({
             data: {
               userId: user.id,
               organizationId,
-              roleId,
+              roleId: mappedRole.id,
               status: OrganizationMembershipStatus.ACTIVE,
               isDefault: false,
               joinedAt: new Date(),
             },
           });
+        } else if (!hasUsableMembershipRole(membership, organizationId)) {
+          if (!mappedRole) throw new UnauthorizedException('SSO membership has no usable role assignment');
+          await tx.organizationMembership.update({ where: { id: membership.id }, data: { roleId: mappedRole.id } });
         }
         if (!linked)
           await tx.externalIdentity.create({
@@ -262,18 +268,6 @@ export class OidcService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-  }
-
-  private async mappedRole(providerId: string, groups: string[]) {
-    if (!groups.length) return null;
-    const mappings = await this.prisma.ssoGroupRoleMapping.findMany({
-      where: { providerId, normalizedGroup: { in: groups } },
-      select: { roleId: true },
-    });
-    const roleIds = [...new Set(mappings.map((item) => item.roleId))];
-    if (roleIds.length > 1)
-      throw new UnauthorizedException("Conflicting SSO group mappings");
-    return roleIds[0] ?? null;
   }
 
   private async createClient(

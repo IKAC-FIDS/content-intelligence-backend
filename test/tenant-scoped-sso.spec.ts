@@ -187,8 +187,13 @@ describe("fix 000090 Tenant-scoped SSO Providers", () => {
       join(process.cwd(), "src/auth/sso/saml.service.ts"),
       "utf8",
     );
-    expect(oidc).toContain("Conflicting SSO group mappings");
-    expect(saml).toContain("Conflicting SSO group mappings");
+    const membershipRole = readFileSync(
+      join(process.cwd(), "src/auth/sso/sso-membership-role.ts"),
+      "utf8",
+    );
+    expect(membershipRole).toContain("Conflicting SSO group mappings");
+    expect(oidc).toContain("resolveSsoMappedRole");
+    expect(saml).toContain("resolveSsoMappedRole");
     expect(oidc).toContain("role: UserRole.REP");
     expect(saml).toContain("role: UserRole.REP");
   });
