@@ -1,0 +1,30 @@
+services:
+  api:
+    build:
+      context: .
+    container_name: content-intelligence-backend-api
+    restart: unless-stopped
+    env_file:
+      - .env.server
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "${CONTENT_INTELLIGENCE_API_PORT:-3001}:3000"
+    networks:
+      - shared-services
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+networks:
+  shared-services:
+    external: true
+    name: "${SHARED_DOCKER_NETWORK:-iam-crm-backend_default}"
