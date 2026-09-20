@@ -19,7 +19,7 @@ describe('TenantRolesService system role permissions', () => {
     _count: { users: 1, permissions: 0, organizationMemberships: 1 },
   };
 
-  it('allows a role manager to replace permissions on a system role', async () => {
+  it('rejects tenant role managers replacing permissions on a system role', async () => {
     const permissions = [
       { id: 'p1', action: 'permission:manage' },
       { id: 'p2', action: 'role:manage' },
@@ -38,42 +38,27 @@ describe('TenantRolesService system role permissions', () => {
       permission: { findMany: jest.fn().mockResolvedValue(permissions) },
       $transaction: (callback: any) => callback(tx),
     };
-    const service = new TenantRolesService(prisma);
+    const tenantRbac = { replacePermissions: jest.fn() };
+    const service = new TenantRolesService(prisma, tenantRbac as any);
     jest.spyOn(service, 'permissions').mockResolvedValue({ ok: true } as any);
 
     await expect(
       service.replacePermissions('admin-role', { permissionIds: ['p1', 'p2', 'p3'] }, tenant),
-    ).resolves.toEqual({ ok: true });
-    expect(tx.rolePermission.deleteMany).toHaveBeenCalledWith({
-      where: { OR: [{ roleId: 'admin-role' }, { role: UserRole.ADMIN }] },
-    });
-    expect(tx.rolePermission.createMany).toHaveBeenCalledWith({
-      data: permissions.map((permission) => ({
-        roleId: 'admin-role',
-        role: UserRole.ADMIN,
-        permissionId: permission.id,
-      })),
-    });
-    expect(tx.organization.updateMany).toHaveBeenCalledWith({
-      where: {},
-      data: { authorizationVersion: { increment: 1 } },
-    });
-    expect(tx.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        actorId: 'actor-a',
-        action: 'tenant-role.permissions-replaced',
-      }),
-    }));
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(tenantRbac.replacePermissions).not.toHaveBeenCalled();
+    expect(tx.rolePermission.deleteMany).not.toHaveBeenCalled();
+    expect(tx.rolePermission.createMany).not.toHaveBeenCalled();
+    expect(tx.organization.updateMany).not.toHaveBeenCalled();
   });
 
-  it('keeps critical ADMIN permissions protected', async () => {
+  it('keeps critical permissions protected on ADMIN-based tenant roles', async () => {
     const prisma: any = {
-      role: { findFirst: jest.fn().mockResolvedValue(systemRole) },
+      role: { findFirst: jest.fn().mockResolvedValue({ ...systemRole, scope: RoleScope.TENANT, organizationId: tenant.organizationId }) },
       permission: {
         findMany: jest.fn().mockResolvedValue([{ id: 'p3', action: 'user:view' }]),
       },
     };
-    const service = new TenantRolesService(prisma);
+    const service = new TenantRolesService(prisma, { replacePermissions: jest.fn() } as any);
     await expect(
       service.replacePermissions('admin-role', { permissionIds: ['p3'] }, tenant),
     ).rejects.toBeInstanceOf(ForbiddenException);

@@ -9,6 +9,7 @@ import { Prisma, RoleScope, UserRole } from '@prisma/client';
 import type { TenantContext } from '../common/tenant/tenant-context.types';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantRbacService } from '../organization-memberships/tenant-rbac.service';
 import {
   CreateRoleDto,
   ReplaceRolePermissionsDto,
@@ -19,13 +20,13 @@ const ADMIN_REQUIRED = ['permission:manage', 'role:manage'];
 
 @Injectable()
 export class TenantRolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly tenantRbac: TenantRbacService) {}
 
   list(tenant: TenantContext) {
     return this.prisma.role.findMany({
       where: {
         OR: [
-          { scope: RoleScope.SYSTEM },
+          { scope: RoleScope.SYSTEM, organizationId: null },
           {
             scope: RoleScope.TENANT,
             organizationId: tenant.organizationId,
@@ -49,7 +50,7 @@ export class TenantRolesService {
       where: {
         id,
         OR: [
-          { scope: RoleScope.SYSTEM },
+          { scope: RoleScope.SYSTEM, organizationId: null },
           {
             scope: RoleScope.TENANT,
             organizationId: tenant.organizationId,
@@ -130,24 +131,31 @@ export class TenantRolesService {
       );
     }
 
-    return this.prisma.role.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name.trim() }),
-        ...(dto.description !== undefined && {
-          description: dto.description.trim() || null,
-        }),
-        ...(dto.baseRole !== undefined && { baseRole: dto.baseRole }),
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      },
-      include: {
-        _count: {
-          select: {
-            users: true,
-            permissions: true,
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.role.update({
+        where: { id, scope: RoleScope.TENANT, organizationId: tenant.organizationId },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name.trim() }),
+          ...(dto.description !== undefined && {
+            description: dto.description.trim() || null,
+          }),
+          ...(dto.baseRole !== undefined && { baseRole: dto.baseRole }),
+          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        },
+        include: {
+          _count: {
+            select: {
+              users: true,
+              permissions: true,
+            },
           },
         },
-      },
+      });
+      await tx.organization.update({
+        where: { id: tenant.organizationId },
+        data: { authorizationVersion: { increment: 1 } },
+      });
+      return updated;
     });
   }
 
@@ -168,7 +176,7 @@ export class TenantRolesService {
       );
     }
 
-    return this.prisma.role.delete({ where: { id } });
+    return this.prisma.role.delete({ where: { id, scope: RoleScope.TENANT, organizationId: tenant.organizationId } });
   }
 
   async permissions(id: string, tenant: TenantContext) {
@@ -209,6 +217,10 @@ export class TenantRolesService {
   ) {
     const role = await this.get(id, tenant);
 
+    if (role.scope !== RoleScope.TENANT || role.organizationId !== tenant.organizationId) {
+      throw new ForbiddenException('System role permissions are platform controlled');
+    }
+
     const permissions = await this.prisma.permission.findMany({
       where: {
         id: { in: dto.permissionIds },
@@ -235,47 +247,7 @@ export class TenantRolesService {
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.rolePermission.deleteMany({
-        where:
-          role.scope === RoleScope.SYSTEM
-            ? { OR: [{ roleId: id }, { role: role.baseRole }] }
-            : { roleId: id },
-      });
-
-      if (permissions.length) {
-        await tx.rolePermission.createMany({
-          data: permissions.map((permission) => ({
-            roleId: id,
-            role:
-              role.scope === RoleScope.SYSTEM ? role.baseRole : null,
-            permissionId: permission.id,
-          })),
-        });
-      }
-
-      await tx.organization.updateMany({
-        where:
-          role.scope === RoleScope.SYSTEM
-            ? {}
-            : { id: tenant.organizationId },
-        data: { authorizationVersion: { increment: 1 } },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          actorId: tenant.userId,
-          organizationId: tenant.organizationId,
-          entityType: 'tenant-rbac',
-          entityId: id,
-          action: 'tenant-role.permissions-replaced',
-          before: {
-            permissionIds: role.permissions.map((item) => item.permissionId),
-          },
-          after: { permissionIds: permissions.map((item) => item.id) },
-        },
-      });
-    });
+    await this.tenantRbac.replacePermissions(id, dto, tenant, tenant.userId);
 
     PermissionsGuard.clearCache(role.baseRole);
     PermissionsGuard.clearCache(`role:${id}`);

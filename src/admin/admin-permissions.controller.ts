@@ -12,12 +12,11 @@ import {
 import { UserRole } from '@prisma/client';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { PlatformAdminGuard } from '../platform-authority/platform-admin.guard';
 import { AdminPermissionsService } from './admin-permissions.service';
 
 @Controller('admin/permissions')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(PlatformAdminGuard)
 export class AdminPermissionsController {
   constructor(private adminPermissionsService: AdminPermissionsService) {}
 
