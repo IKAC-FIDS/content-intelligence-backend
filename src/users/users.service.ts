@@ -11,7 +11,6 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { getCurrentOrganizationId } from '../common/tenant/tenant-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FindUsersDto } from './dto/find-users.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
@@ -158,18 +157,17 @@ export class UsersService {
             fullName: dto.fullName,
             email: dto.email,
             passwordHash,
-            role: assignedRole.baseRole,
-            roleId: assignedRole.id,
             team: teamAssignment.team,
             teamId: teamAssignment.teamId,
             organizationId,
           },
         });
         await this.memberships.createInitialMembership(tx, created, assignedRole.id);
-        return tx.user.findUniqueOrThrow({
+        const persisted = await tx.user.findUniqueOrThrow({
           where: { id: created.id },
           select: safeUserSelect,
         });
+        return this.withMembershipRole(persisted, assignedRole);
       });
     } catch (error) {
       if (reservation)
@@ -368,57 +366,62 @@ export class UsersService {
       throw new BadRequestException('role or roleId is required');
     }
     const organizationId = actor ? getCurrentOrganizationId(actor) : undefined;
-    const user = await this.prisma.user.findFirst({
-      where: { id, ...(organizationId && { organizationId }) },
-      include: { ownedCompanies: { select: { id: true } } },
+    if (!organizationId) {
+      throw new BadRequestException('Tenant context is required to change a role');
+    }
+    const membership = await this.prisma.organizationMembership.findUnique({
+      where: { userId_organizationId: { userId: id, organizationId } },
+      select: {
+        roleId: true,
+        teamId: true,
+        team: { select: { code: true } },
+        user: {
+          select: {
+            ...safeUserSelect,
+            ownedCompanies: { select: { id: true } },
+          },
+        },
+      },
     });
 
-    if (!user) {
+    if (!membership) {
       throw new NotFoundException('User not found');
     }
+    const user = membership.user;
 
     const teamAssignment = await this.resolveTeamAssignment(
       dto.teamId,
       dto.team,
       actor,
       {
-        teamId: user.teamId,
-        team: user.team,
+        teamId: membership.teamId,
+        team: membership.team?.code ?? null,
       },
     );
 
     const updatedUser = await this.prisma.$transaction(async (tx) => {
-      const assignedRole = await resolveMembershipRole(tx, organizationId ?? user.organizationId, { roleId: dto.roleId, legacyRole: dto.role });
-      const nextBaseRole = assignedRole.baseRole;
-      if (nextBaseRole === UserRole.MANAGER && user.ownedCompanies.length > 0 && !teamAssignment.teamId && !teamAssignment.team) {
+      const assignedRole = await resolveMembershipRole(tx, organizationId, { roleId: dto.roleId, legacyRole: dto.role });
+      if (assignedRole.baseRole === UserRole.MANAGER && user.ownedCompanies.length > 0 && !teamAssignment.teamId && !teamAssignment.team) {
         throw new BadRequestException('A manager with owned companies must have a team');
       }
-      if (actor?.userId === id && user.role === UserRole.ADMIN) {
+      if (actor?.userId === id) {
         const grants = await tx.rolePermission.findMany({ where: { roleId: assignedRole.id, permission: { isActive: true } }, select: { permission: { select: { action: true } } } });
         const actions = new Set(grants.map((item) => item.permission.action));
         if (!actions.has('permission:manage') || !actions.has('role:manage')) throw new BadRequestException('You cannot remove your own RBAC management access');
       }
-      await this.memberships.syncDefaultAssignment(tx, id, organizationId ?? user.organizationId, assignedRole.id, teamAssignment.teamId);
-      const result = await tx.user.update({
-        where: { id },
-        data: {
-          role: nextBaseRole,
-          roleId: assignedRole.id,
-          team: teamAssignment.team,
-          teamId: teamAssignment.teamId,
-        },
-        select: safeUserSelect,
-      });
+      await this.memberships.syncDefaultAssignment(tx, id, organizationId, assignedRole.id, teamAssignment.teamId);
+      const { ownedCompanies: _ownedCompanies, ...publicUser } = user;
+      const result = {
+        ...publicUser,
+        team: teamAssignment.team,
+        teamId: teamAssignment.teamId,
+      };
       await tx.organization.update({
-        where: { id: organizationId ?? user.organizationId },
+        where: { id: organizationId },
         data: { authorizationVersion: { increment: 1 } },
       });
-      return { result, assignedRole };
+      return { result: this.withMembershipRole(result, assignedRole), assignedRole };
     });
-
-    PermissionsGuard.clearCache(updatedUser.assignedRole.baseRole);
-    PermissionsGuard.clearCache(`role:${updatedUser.assignedRole.id}`);
-    PermissionsGuard.clearCache(user.role);
 
     await this.audit.record({
       actorId: actor?.userId,
@@ -431,6 +434,27 @@ export class UsersService {
     });
 
     return updatedUser.result;
+  }
+
+  private withMembershipRole<
+    T extends { role: UserRole; roleId: string | null; assignedRole: unknown },
+  >(
+    user: T,
+    role: {
+      id: string;
+      code: string;
+      name: string;
+      baseRole: UserRole;
+      isSystem: boolean;
+      isActive: boolean;
+    },
+  ) {
+    return {
+      ...user,
+      role: role.baseRole,
+      roleId: role.id,
+      assignedRole: role,
+    };
   }
 
   async resetPassword(

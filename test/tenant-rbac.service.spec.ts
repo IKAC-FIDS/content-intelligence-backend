@@ -46,4 +46,16 @@ describe('TenantRbacService fix 000091', () => {
     await expect(new TenantRbacService(prisma).revoke('owner-membership', tenant, 'actor-a')).rejects.toThrow('must retain a role assignment');
     expect(tx.organizationMembership.update).not.toHaveBeenCalled();
   });
+
+  it('does not leave any active Membership without a role', async () => {
+    const tx: any = {
+      organizationMembership: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'member-a', roleId: 'member-role', isTenantOwner: false, status: 'ACTIVE' }),
+        update: jest.fn(),
+      },
+    };
+    const prisma: any = { $transaction: (callback: any) => callback(tx) };
+    await expect(new TenantRbacService(prisma).revoke('member-a', tenant, 'actor-a')).rejects.toThrow('An active membership must retain a role assignment');
+    expect(tx.organizationMembership.update).not.toHaveBeenCalled();
+  });
 });

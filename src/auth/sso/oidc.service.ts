@@ -11,7 +11,6 @@ import {
   SsoProvider,
   SsoProviderType,
   SsoRoutingKind,
-  UserRole,
 } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "crypto";
@@ -221,7 +220,6 @@ export class OidcService {
               email: identity.email,
               fullName: identity.fullName,
               passwordHash,
-              role: UserRole.REP,
               organizationId,
               isActive: true,
             },

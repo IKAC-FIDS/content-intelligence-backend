@@ -178,7 +178,7 @@ describe("fix 000090 Tenant-scoped SSO Providers", () => {
     }
   });
 
-  it("uses explicit tenant group allowlists and rejects conflicting mapped roles", () => {
+  it("uses explicit tenant group mappings without writing a legacy User role", () => {
     const oidc = readFileSync(
       join(process.cwd(), "src/auth/sso/oidc.service.ts"),
       "utf8",
@@ -194,8 +194,10 @@ describe("fix 000090 Tenant-scoped SSO Providers", () => {
     expect(membershipRole).toContain("Conflicting SSO group mappings");
     expect(oidc).toContain("resolveSsoMappedRole");
     expect(saml).toContain("resolveSsoMappedRole");
-    expect(oidc).toContain("role: UserRole.REP");
-    expect(saml).toContain("role: UserRole.REP");
+    expect(oidc).not.toContain("role: UserRole.REP");
+    expect(saml).not.toContain("role: UserRole.REP");
+    expect(oidc).toContain("roleId: mappedRole.id");
+    expect(saml).toContain("roleId: mappedRole.id");
   });
 
   it("contains an additive migration with no Provider update, delete, or guessed default", () => {

@@ -108,11 +108,12 @@ describe('Stage 5.4-D SSO membership role authority', () => {
     expect(prisma.organizationMembership.create).not.toHaveBeenCalled();
   });
 
-  it('uses the mapped Role.id rather than defaultRole or the legacy REP user field', async () => {
+  it('uses the mapped Role.id without writing defaultRole or a legacy User role', async () => {
     const mapped = role(RoleScope.TENANT);
     const { tx, service } = samlHarness(mapped);
     await (service as any).resolveUser(provider(SsoProviderType.SAML, { defaultRole: UserRole.ADMIN }), identity);
-    expect(tx.user.create).toHaveBeenCalledWith({ data: expect.objectContaining({ role: UserRole.REP }) });
+    expect(tx.user.create.mock.calls[0][0].data).not.toHaveProperty('role');
+    expect(tx.user.create.mock.calls[0][0].data).not.toHaveProperty('roleId');
     expect(tx.organizationMembership.create).toHaveBeenCalledWith({ data: expect.objectContaining({ roleId: mapped.id }) });
   });
 

@@ -34,7 +34,23 @@ function usersHarness(roleLookup: any) {
   else tx.role.findMany.mockResolvedValue(roleLookup.value);
   const prisma: any = {
     $transaction: jest.fn((callback) => callback(tx)),
-    user: { findFirst: jest.fn().mockResolvedValue({ id: 'user-a', organizationId: 'org-a', role: UserRole.REP, roleId: 'old-role', teamId: null, team: null, ownedCompanies: [] }) },
+    organizationMembership: {
+      findUnique: jest.fn().mockResolvedValue({
+        roleId: 'old-role',
+        teamId: null,
+        team: null,
+        user: {
+          id: 'user-a',
+          organizationId: 'legacy-org',
+          role: UserRole.REP,
+          roleId: 'old-role',
+          assignedRole: null,
+          teamId: null,
+          team: null,
+          ownedCompanies: [],
+        },
+      }),
+    },
   };
   const audit: any = { record: jest.fn().mockResolvedValue({}) };
   const quota: any = { reserve: jest.fn().mockResolvedValue({ reservationId: 'reservation' }), commitReservation: jest.fn(), releaseReservation: jest.fn() };
@@ -44,10 +60,17 @@ function usersHarness(roleLookup: any) {
 
 describe('Stage 5.4-C membership role assignment', () => {
   it('creates a tenant user with a non-null membership role resolved from legacy UserRole', async () => {
-    const role = { id: 'system-rep', baseRole: UserRole.REP, scope: RoleScope.SYSTEM, organizationId: null };
-    const { service, memberships } = usersHarness({ mode: 'legacy', value: [role] });
-    await service.create({ fullName: 'User', email: 'user@example.test', password: 'secret1', role: UserRole.REP }, actor);
+    const role = { id: 'system-rep', code: 'REP', name: 'Rep', baseRole: UserRole.REP, isSystem: true, isActive: true, scope: RoleScope.SYSTEM, organizationId: null };
+    const { service, memberships, tx } = usersHarness({ mode: 'legacy', value: [role] });
+    const result = await service.create({ fullName: 'User', email: 'user@example.test', password: 'secret1', role: UserRole.REP }, actor);
     expect(memberships.createInitialMembership).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'system-rep');
+    expect(tx.user.create.mock.calls[0][0].data).not.toHaveProperty('role');
+    expect(tx.user.create.mock.calls[0][0].data).not.toHaveProperty('roleId');
+    expect(result).toMatchObject({
+      role: UserRole.REP,
+      roleId: 'system-rep',
+      assignedRole: { id: 'system-rep', code: 'REP' },
+    });
   });
 
   it('fails closed when the legacy SYSTEM role is missing', async () => {
@@ -72,22 +95,34 @@ describe('Stage 5.4-C membership role assignment', () => {
     await expect(resolveMembershipRole(tx, 'org-a', { roleId: 'invalid-role' })).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('updates the intended organization membership before mirroring legacy User fields', async () => {
-    const role = { id: 'role-next', baseRole: UserRole.MANAGER, scope: RoleScope.TENANT, organizationId: 'org-a' };
+  it('updates the intended Membership without mirroring Role into global User fields', async () => {
+    const role = { id: 'role-next', code: 'TEAM_MANAGER', name: 'Team Manager', baseRole: UserRole.MANAGER, isSystem: false, isActive: true, scope: RoleScope.TENANT, organizationId: 'org-a' };
     const { service, memberships, tx } = usersHarness({ mode: 'id', value: role });
     const order: string[] = [];
     memberships.syncDefaultAssignment.mockImplementation(async () => { order.push('membership'); });
-    tx.user.update.mockImplementation(async () => { order.push('user'); return { id: 'user-a', role: UserRole.MANAGER, roleId: 'role-next' }; });
-    await service.updateUserRole('user-a', { roleId: 'role-next' }, actor);
+    const result = await service.updateUserRole('user-a', { roleId: 'role-next' }, actor);
     expect(memberships.syncDefaultAssignment).toHaveBeenCalledWith(tx, 'user-a', 'org-a', 'role-next', null);
-    expect(order).toEqual(['membership', 'user']);
+    expect(order).toEqual(['membership']);
+    expect(tx.user.update).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      role: UserRole.MANAGER,
+      roleId: 'role-next',
+      assignedRole: { id: 'role-next', code: 'TEAM_MANAGER' },
+    });
   });
 
   it('does not update a second tenant membership when Tenant A role changes', async () => {
-    const role = { id: 'role-a', baseRole: UserRole.REP, scope: RoleScope.TENANT, organizationId: 'org-a' };
-    const { service, memberships } = usersHarness({ mode: 'id', value: role });
+    const role = { id: 'role-a', code: 'TENANT_REP', name: 'Tenant Rep', baseRole: UserRole.REP, isSystem: false, isActive: true, scope: RoleScope.TENANT, organizationId: 'org-a' };
+    const { service, memberships, prisma } = usersHarness({ mode: 'id', value: role });
     await service.updateUserRole('user-a', { roleId: 'role-a' }, actor);
     expect(memberships.syncDefaultAssignment).toHaveBeenCalledTimes(1);
     expect(memberships.syncDefaultAssignment.mock.calls[0][2]).toBe('org-a');
+    expect(prisma.organizationMembership.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_organizationId: { userId: 'user-a', organizationId: 'org-a' },
+        },
+      }),
+    );
   });
 });

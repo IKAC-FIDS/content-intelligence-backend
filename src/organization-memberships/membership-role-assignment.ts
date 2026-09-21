@@ -16,7 +16,16 @@ export async function resolveMembershipRole(
           { scope: RoleScope.TENANT, organizationId },
         ],
       },
-      select: { id: true, baseRole: true, scope: true, organizationId: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        baseRole: true,
+        isSystem: true,
+        isActive: true,
+        scope: true,
+        organizationId: true,
+      },
     });
     if (!role) throw new BadRequestException('Role is inactive or is not assignable to this organization');
     return role;
@@ -25,7 +34,16 @@ export async function resolveMembershipRole(
   if (!assignment.legacyRole) throw new BadRequestException('role or roleId is required');
   const roles = await tx.role.findMany({
     where: { baseRole: assignment.legacyRole, scope: RoleScope.SYSTEM, organizationId: null, isActive: true },
-    select: { id: true, baseRole: true, scope: true, organizationId: true },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      baseRole: true,
+      isSystem: true,
+      isActive: true,
+      scope: true,
+      organizationId: true,
+    },
     take: 2,
   });
   if (roles.length !== 1) {

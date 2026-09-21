@@ -15,7 +15,6 @@ import {
   SsoProvider,
   SsoProviderType,
   SsoRoutingKind,
-  UserRole,
 } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditLogService } from "../../audit-log/audit-log.service";
@@ -436,7 +435,6 @@ export class SamlService {
           email: input.email,
           fullName: input.fullName,
           passwordHash,
-          role: UserRole.REP,
           organizationId: provider.organizationId!,
           isActive: true,
         },
