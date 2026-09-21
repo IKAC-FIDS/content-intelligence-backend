@@ -557,8 +557,9 @@ model Team {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
 
-  members                 User[]                   @relation("UserPrimaryTeam")
+  members                 User[]                       @relation("UserPrimaryTeam")
   organizationMemberships OrganizationMembership[]
+  membershipLinks         OrganizationMembershipTeam[]
   technicalTenders        Tender[]
   tasks                   Task[]
 
@@ -2353,6 +2354,7 @@ model OrganizationMembership {
   role           Role?                        @relation(fields: [roleId], references: [id], onDelete: SetNull)
   teamId         String?
   team           Team?                        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teams          OrganizationMembershipTeam[]
   status         OrganizationMembershipStatus @default(INVITED)
   isDefault      Boolean                      @default(false)
   isTenantOwner  Boolean                      @default(false)
@@ -2373,6 +2375,18 @@ model OrganizationMembership {
   @@index([teamId])
   @@index([userId, isDefault, status])
   @@map("organization_memberships")
+}
+
+model OrganizationMembershipTeam {
+  membershipId String
+  membership   OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  teamId       String
+  team         Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt    DateTime               @default(now())
+
+  @@id([membershipId, teamId])
+  @@index([teamId])
+  @@map("organization_membership_teams")
 }
 
 model PlatformAuthority {

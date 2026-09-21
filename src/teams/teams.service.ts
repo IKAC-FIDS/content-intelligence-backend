@@ -1,11 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { OrganizationMembershipStatus, Prisma } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { getCurrentOrganizationId } from '../common/tenant/tenant-scope.util';
@@ -14,7 +13,6 @@ import { AddTeamMemberDto } from './dto/add-team-member.dto';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { FindTeamsDto } from './dto/find-teams.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
-import { OrganizationMembershipsService } from '../organization-memberships/organization-memberships.service';
 
 const teamInclude = {
   manager: {
@@ -22,46 +20,39 @@ const teamInclude = {
       id: true,
       fullName: true,
       email: true,
-      role: true,
-      team: true,
-      teamId: true,
     },
   },
   _count: {
     select: {
-      members: true,
+      membershipLinks: true,
     },
   },
 } satisfies Prisma.TeamInclude;
 
-const memberSelect = {
+const membershipMemberSelect = {
   id: true,
-  fullName: true,
-  email: true,
-  role: true,
-  team: true,
-  teamId: true,
-  isActive: true,
-  teamRef: {
+  status: true,
+  roleId: true,
+  role: { select: { id: true, code: true, name: true } },
+  user: {
     select: {
       id: true,
-      code: true,
-      name: true,
+      fullName: true,
+      email: true,
+      isActive: true,
+      avatarObjectKey: true,
     },
   },
-} satisfies Prisma.UserSelect;
+} satisfies Prisma.OrganizationMembershipSelect;
 
 @Injectable()
 export class TeamsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
-    private readonly memberships: OrganizationMembershipsService,
   ) {}
 
   async findAll(query: FindTeamsDto, user: CurrentUserPayload) {
-    this.assertCanView(user);
-
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const search = query.search?.trim();
@@ -107,16 +98,12 @@ export class TeamsService {
   }
 
   async findOne(id: string, user: CurrentUserPayload) {
-    this.assertCanView(user);
-
     const team = await this.getTeam(id, user);
 
     return this.toTeamResponse(team);
   }
 
   async create(dto: CreateTeamDto, user: CurrentUserPayload) {
-    this.assertAdmin(user);
-
     const code = this.normalizeCode(dto.code);
     const organizationId = getCurrentOrganizationId(user);
 
@@ -156,8 +143,6 @@ export class TeamsService {
   }
 
   async update(id: string, dto: UpdateTeamDto, user: CurrentUserPayload) {
-    this.assertAdmin(user);
-
     const current = await this.getTeam(id, user);
     const data: Prisma.TeamUpdateInput = {};
 
@@ -199,10 +184,6 @@ export class TeamsService {
       include: teamInclude,
     });
 
-    if (dto.code !== undefined && updated.code !== current.code) {
-      await this.syncLegacyTeamForMembers(updated.id, updated.code);
-    }
-
     await this.audit.record({
       actorId: user.userId,
       organizationId: getCurrentOrganizationId(user),
@@ -225,44 +206,49 @@ export class TeamsService {
   }
 
   async members(id: string, user: CurrentUserPayload) {
-    this.assertCanView(user);
     await this.getTeam(id, user);
 
-    return this.prisma.user.findMany({
+    const links = await this.prisma.organizationMembershipTeam.findMany({
       where: {
         teamId: id,
-        organizationId: getCurrentOrganizationId(user),
+        membership: {
+          organizationId: getCurrentOrganizationId(user),
+        },
       },
-      select: memberSelect,
-      orderBy: [{ fullName: 'asc' }, { email: 'asc' }],
+      select: { membership: { select: membershipMemberSelect } },
+      orderBy: [
+        { membership: { user: { fullName: 'asc' } } },
+        { membership: { user: { email: 'asc' } } },
+      ],
     });
+    return links.map(({ membership }) => this.toMemberResponse(membership));
   }
 
   async addMember(id: string, dto: AddTeamMemberDto, user: CurrentUserPayload) {
-    this.assertAdmin(user);
-
     const team = await this.getTeam(id, user);
 
     if (!team.isActive) {
       throw new BadRequestException('Cannot assign users to an inactive team');
     }
 
-    const member = await this.getUserInOrganization(dto.userId, user);
+    const membership = await this.getMembership(dto.userId, user);
 
-    const organizationId = getCurrentOrganizationId(user);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.user.update({
-        where: { id: member.id },
-        data: { teamId: team.id, team: team.code },
-        select: memberSelect,
-      });
-      await this.memberships.syncDefaultTeam(
-        tx,
-        member.id,
-        organizationId,
-        team.id,
-      );
-      return result;
+    await this.prisma.organizationMembershipTeam.upsert({
+      where: {
+        membershipId_teamId: {
+          membershipId: membership.id,
+          teamId: team.id,
+        },
+      },
+      create: {
+        membershipId: membership.id,
+        teamId: team.id,
+      },
+      update: {},
+    });
+    const updated = await this.prisma.organizationMembership.findUniqueOrThrow({
+      where: { id: membership.id },
+      select: membershipMemberSelect,
     });
 
     await this.audit.record({
@@ -271,37 +257,34 @@ export class TeamsService {
       entityType: 'team',
       entityId: team.id,
       action: 'team.member_added',
-      before: member,
-      after: updated,
+      before: membership,
+      after: { membershipId: membership.id, teamId: team.id },
     });
 
-    return updated;
+    return this.toMemberResponse(updated);
   }
 
   async removeMember(id: string, userId: string, user: CurrentUserPayload) {
-    this.assertAdmin(user);
     await this.getTeam(id, user);
 
-    const member = await this.getUserInOrganization(userId, user);
-
-    if (member.teamId !== id) {
+    const membership = await this.getMembership(userId, user);
+    const link = await this.prisma.organizationMembershipTeam.findUnique({
+      where: {
+        membershipId_teamId: { membershipId: membership.id, teamId: id },
+      },
+    });
+    if (!link) {
       throw new BadRequestException('User is not a member of this team');
     }
 
-    const organizationId = getCurrentOrganizationId(user);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.user.update({
-        where: { id: member.id },
-        data: { teamId: null, team: null },
-        select: memberSelect,
-      });
-      await this.memberships.syncDefaultTeam(
-        tx,
-        member.id,
-        organizationId,
-        null,
-      );
-      return result;
+    await this.prisma.organizationMembershipTeam.delete({
+      where: {
+        membershipId_teamId: { membershipId: membership.id, teamId: id },
+      },
+    });
+    const updated = await this.prisma.organizationMembership.findUniqueOrThrow({
+      where: { id: membership.id },
+      select: membershipMemberSelect,
     });
 
     await this.audit.record({
@@ -310,11 +293,11 @@ export class TeamsService {
       entityType: 'team',
       entityId: id,
       action: 'team.member_removed',
-      before: member,
-      after: updated,
+      before: { membershipId: membership.id, teamId: id },
+      after: membership,
     });
 
-    return updated;
+    return this.toMemberResponse(updated);
   }
 
   private async getTeam(id: string, user: CurrentUserPayload) {
@@ -333,30 +316,34 @@ export class TeamsService {
     return team;
   }
 
-  private async getUserInOrganization(userId: string, user: CurrentUserPayload) {
-    const member = await this.prisma.user.findFirst({
+  private async getMembership(userId: string, user: CurrentUserPayload) {
+    const membership = await this.prisma.organizationMembership.findUnique({
       where: {
-        id: userId,
-        organizationId: getCurrentOrganizationId(user),
+        userId_organizationId: {
+          userId,
+          organizationId: getCurrentOrganizationId(user),
+        },
       },
-      select: memberSelect,
+      select: membershipMemberSelect,
     });
 
-    if (!member) {
+    if (!membership) {
       throw new NotFoundException('User not found');
     }
 
-    return member;
+    return membership;
   }
 
   private async getValidManager(managerId: string, user: CurrentUserPayload) {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        organizationId: getCurrentOrganizationId(user),
         isActive: true,
-        role: {
-          in: [UserRole.ADMIN, UserRole.MANAGER],
+        organizationMemberships: {
+          some: {
+            organizationId: getCurrentOrganizationId(user),
+            status: OrganizationMembershipStatus.ACTIVE,
+          },
         },
       },
       select: {
@@ -365,27 +352,43 @@ export class TeamsService {
     });
 
     if (!manager) {
-      throw new BadRequestException('Team manager must be an active ADMIN or MANAGER');
+      throw new BadRequestException('Team manager must be an active organization member');
     }
 
     return manager;
   }
 
-  private async syncLegacyTeamForMembers(teamId: string, code: string) {
-    await this.prisma.user.updateMany({
-      where: { teamId },
-      data: { team: code },
-    });
-  }
-
   private toTeamResponse<T extends {
-    _count?: { members: number };
+    _count?: { membershipLinks: number };
   }>(team: T) {
     const { _count, ...rest } = team;
 
     return {
       ...rest,
-      memberCount: _count?.members ?? 0,
+      memberCount: _count?.membershipLinks ?? 0,
+    };
+  }
+
+  private toMemberResponse<T extends {
+    id: string;
+    status: OrganizationMembershipStatus;
+    roleId: string | null;
+    role: { id: string; code: string; name: string } | null;
+    user: {
+      id: string;
+      fullName: string;
+      email: string;
+      isActive: boolean;
+      avatarObjectKey: string | null;
+    };
+  }>(membership: T) {
+    return {
+      ...membership.user,
+      membershipId: membership.id,
+      membershipStatus: membership.status,
+      roleId: membership.roleId,
+      role: membership.role?.code ?? null,
+      assignedRole: membership.role,
     };
   }
 
@@ -413,15 +416,4 @@ export class TeamsService {
     return normalized;
   }
 
-  private assertCanView(user: CurrentUserPayload) {
-    if (user.role === UserRole.BOARDS) {
-      throw new ForbiddenException('You do not have access to teams');
-    }
-  }
-
-  private assertAdmin(user: CurrentUserPayload) {
-    if (user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Only admins can manage teams');
-    }
-  }
 }

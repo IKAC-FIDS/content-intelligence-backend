@@ -219,9 +219,20 @@ export class NotificationRuleEngineService {
     if (event.aggregateType === "TASK") {
       const task = await db.task.findFirst({
         where: { id: event.aggregateId, organizationId: event.organizationId },
-        select: { teamId: true, assignedTo: { select: { teamId: true } } },
+        select: { teamId: true, assignedToId: true },
       })
-      teamIds = [task?.teamId, task?.assignedTo?.teamId].filter(
+      const membershipTeams = task?.assignedToId
+        ? await db.organizationMembershipTeam.findMany({
+            where: {
+              membership: {
+                userId: task.assignedToId,
+                organizationId: event.organizationId,
+              },
+            },
+            select: { teamId: true },
+          })
+        : []
+      teamIds = [task?.teamId, ...membershipTeams.map((row) => row.teamId)].filter(
         (value): value is string => Boolean(value),
       )
     } else if (event.aggregateType === "MEETING") {
@@ -230,11 +241,18 @@ export class NotificationRuleEngineService {
           meetingId: event.aggregateId,
           meeting: { organizationId: event.organizationId },
         },
-        select: { user: { select: { teamId: true } } },
+        select: { userId: true },
       })
-      teamIds = rows
-        .map((row) => row.user.teamId)
-        .filter((value): value is string => Boolean(value))
+      const membershipTeams = await db.organizationMembershipTeam.findMany({
+        where: {
+          membership: {
+            userId: { in: rows.map((row) => row.userId) },
+            organizationId: event.organizationId,
+          },
+        },
+        select: { teamId: true },
+      })
+      teamIds = membershipTeams.map((row) => row.teamId)
     }
 
     if (!teamIds.length) return this.payloadIds(event, "managerUserIds", db)

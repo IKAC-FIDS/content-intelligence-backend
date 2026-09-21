@@ -9,10 +9,6 @@ export interface CurrentUserPayload {
   role: string;
   roleId?: string | null;
 
-  // Temporary compatibility for detached legacy CRM modules.
-  team?: string | null;
-  teamId?: string | null;
-
   organizationId?: string | null;
   activeOrganizationId?: string | null;
   membershipId?: string | null;

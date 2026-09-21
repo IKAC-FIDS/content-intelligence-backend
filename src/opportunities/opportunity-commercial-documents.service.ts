@@ -561,9 +561,7 @@ export class OpportunityCommercialDocumentsService {
     }
 
     if (user.role === UserRole.MANAGER) {
-      return user.teamId || user.team
-        ? { company: { owner: userTeamScopeWhere(user) } }
-        : { id: { in: [] } };
+      return { company: { owner: userTeamScopeWhere(user) } };
     }
 
     return {

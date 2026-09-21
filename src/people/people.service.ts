@@ -26,7 +26,7 @@ export class PeopleService {
 
     if (query.companyId) and.push({ companyId: query.companyId });
     if (query.ownerId) and.push({ company: { ownerId: query.ownerId } });
-    if (query.team?.trim()) and.push({ company: { owner: userTeamFilterWhere([query.team]) } });
+    if (query.team?.trim()) and.push({ company: { owner: userTeamFilterWhere([query.team], user) } });
     if (query.department?.trim()) and.push({ department: query.department.trim() });
     if (query.jobTitle?.trim()) and.push({ title: query.jobTitle.trim() });
     if (query.seniorityLevel?.trim()) and.push({ seniorityLevel: query.seniorityLevel.trim() });

@@ -27,7 +27,7 @@ import {
   tenantScope,
 } from '../common/tenant/tenant-scope.util';
 import type { TenantContext } from '../common/tenant/tenant-context.types';
-import { userMatchesTeam } from '../common/tenant/team-scope.util';
+import { usersShareTeam } from '../common/tenant/team-scope.util';
 
 const notificationInclude = {
   recipient: {
@@ -569,9 +569,10 @@ export class NotificationsService {
     }
 
     if (user.role === UserRole.MANAGER) {
-      const invalidRecipient = recipients.find(
-        (recipient) => !userMatchesTeam(recipient, user),
+      const teamChecks = await Promise.all(
+        recipients.map((recipient) => usersShareTeam(this.prisma, recipient.id, user)),
       );
+      const invalidRecipient = recipients.find((_, index) => !teamChecks[index]);
 
       if (invalidRecipient) {
         throw new ForbiddenException(

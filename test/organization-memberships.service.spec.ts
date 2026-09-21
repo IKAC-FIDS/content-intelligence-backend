@@ -60,7 +60,6 @@ describe('OrganizationMembershipsService effective context', () => {
       organizationId: 'org-1',
       role: 'CONTENT_MANAGER',
       roleId: 'role-1',
-      teamId: 'team-1',
       source: 'authenticated-membership',
     });
   });
@@ -135,12 +134,24 @@ describe('OrganizationMembershipsService effective context', () => {
     );
   });
 
-  it('rejects a Team from another Organization', async () => {
+  it('ignores stale cross-organization Team metadata during resolution', async () => {
     const { service } = setup([
-      membership({ team: { ...membership().team, organizationId: 'org-other' } }),
+      membership({
+        team: {
+          ...membership().team,
+          organizationId: 'org-other',
+          isActive: false,
+        },
+      }),
     ]);
-    await expect(service.resolveEffectiveContext(user)).rejects.toThrow(
-      'another organization',
-    );
+    const context = await service.resolveEffectiveContext(user);
+    expect(context).toMatchObject({
+      membershipId: 'membership-1',
+      organizationId: 'org-1',
+      roleId: 'role-1',
+      role: 'CONTENT_MANAGER',
+    });
+    expect(context).not.toHaveProperty('team');
+    expect(context).not.toHaveProperty('teamId');
   });
 });

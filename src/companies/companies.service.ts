@@ -22,7 +22,7 @@ import {
 } from '../common/tenant/tenant-scope.util';
 import { parseApiDate } from '../common/dates/api-date.util';
 import {
-  userMatchesTeam,
+  usersShareTenantTeam,
   userTeamScopeWhere,
 } from '../common/tenant/team-scope.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -611,11 +611,12 @@ export class CompaniesService {
     if (newOwner.role === UserRole.MANAGER) {
       if (
         company.owner &&
-        !userMatchesTeam(newOwner, {
-          ...user,
-          teamId: company.owner.teamId,
-          team: company.owner.team,
-        })
+        !(await usersShareTenantTeam(
+          this.prisma,
+          newOwner.id,
+          company.owner.id,
+          getCurrentOrganizationId(user),
+        ))
       ) {
         throw new BadRequestException('مدیر فروش باید در همان تیم شرکت باشد');
       }
@@ -813,11 +814,12 @@ export class CompaniesService {
       for (const company of companies) {
         if (
           company.owner &&
-          !userMatchesTeam(newOwner, {
-            ...user,
-            teamId: company.owner.teamId,
-            team: company.owner.team,
-          })
+          !(await usersShareTenantTeam(
+            this.prisma,
+            newOwner.id,
+            company.owner.id,
+            getCurrentOrganizationId(user),
+          ))
         ) {
           throw new BadRequestException(
             `شرکت ${company.legalName} در تیم دیگری است و مدیر جدید عضو همان تیم نیست`,

@@ -155,7 +155,7 @@ export class ActivitiesService {
     if (query.companyId) and.push({ companyId: query.companyId });
     const activityDate = parseApiDateRange(query.dateFrom, query.dateTo, 'dateFrom', 'dateTo');
     if (activityDate) and.push({ occurredAt: activityDate });
-    if (query.team?.trim()) and.push({ company: { owner: userTeamFilterWhere([query.team]) } });
+    if (query.team?.trim()) and.push({ company: { owner: userTeamFilterWhere([query.team], user) } });
     if (query.ownershipScope === OwnershipScope.MINE) and.push({ company: { ownerId: user.userId } });
     else if (query.ownershipScope === OwnershipScope.TEAM) and.push({ company: { owner: userTeamScopeWhere(user) } });
     else if (query.ownershipScope === OwnershipScope.UNASSIGNED) and.push({ company: { ownerId: null } });
@@ -214,7 +214,6 @@ export class ActivitiesService {
   private taskScopeWhere(user: CurrentUserPayload): Prisma.TaskWhereInput {
     if (user.role === UserRole.ADMIN || user.role === UserRole.BOARDS) return {};
     if (user.role === UserRole.MANAGER) {
-      if (!user.teamId && !user.team) return { id: { in: [] } };
       return {
         OR: [
           { assignedTo: userTeamScopeWhere(user) },

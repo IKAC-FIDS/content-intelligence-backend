@@ -74,7 +74,7 @@ export class AdvancedReportsService {
         ...(f.companyIds?.length ? [{ companyId: { in: f.companyIds } }] : []),
         ...(f.userIds?.length ? [{ assignedToId: { in: f.userIds } }] : []),
         ...(f.teams?.length
-          ? [{ assignedTo: userTeamFilterWhere(f.teams) }]
+          ? [{ assignedTo: userTeamFilterWhere(f.teams, user) }]
           : []),
         ...(scope === OwnershipScope.MINE
           ? [{ assignedToId: user.userId }]
@@ -130,9 +130,9 @@ export class AdvancedReportsService {
           ? [
               {
                 OR: [
-                  { organizer: userTeamFilterWhere(f.teams) },
+                  { organizer: userTeamFilterWhere(f.teams, user) },
                   {
-                    assignees: { some: { user: userTeamFilterWhere(f.teams) } },
+                    assignees: { some: { user: userTeamFilterWhere(f.teams, user) } },
                   },
                 ],
               },

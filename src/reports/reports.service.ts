@@ -50,7 +50,7 @@ export class ReportsService {
       { organizationId: getCurrentOrganizationId(user) },
     ];
     if (filters.ownerIds?.length) and.push({ ownerId: { in: filters.ownerIds } });
-    if (filters.teams?.length) and.push({ owner: userTeamFilterWhere(filters.teams) });
+    if (filters.teams?.length) and.push({ owner: userTeamFilterWhere(filters.teams, user) });
     if (filters.priorities?.length) and.push({ priority: { in: filters.priorities } });
     if (filters.industries?.length) and.push({ industry: { in: filters.industries } });
     if (filters.sources?.length) and.push({ source: { in: filters.sources } });
@@ -68,7 +68,7 @@ export class ReportsService {
       { company: { archivedAt: null } },
     ];
     if (filters.ownerIds?.length) and.push({ ownerId: { in: filters.ownerIds } });
-    if (filters.teams?.length) and.push({ owner: userTeamFilterWhere(filters.teams) });
+    if (filters.teams?.length) and.push({ owner: userTeamFilterWhere(filters.teams, user) });
     if (filters.stages?.length) and.push({ OR: [
       { stageId: { in: filters.stages } },
       { stage: { code: { in: filters.stages.map((item) => item.toUpperCase()) } } },
@@ -109,7 +109,7 @@ export class ReportsService {
     if (range) and.push({ occurredAt: range });
     if (filters.userIds?.length) and.push({ userId: { in: filters.userIds } });
     if (filters.activityTypes?.length) and.push({ type: { in: filters.activityTypes } });
-    if (filters.teams?.length) and.push({ user: userTeamFilterWhere(filters.teams) });
+    if (filters.teams?.length) and.push({ user: userTeamFilterWhere(filters.teams, user) });
 
     return { AND: and };
   }
@@ -1005,7 +1005,7 @@ export class ReportsService {
       { organizationId: getCurrentOrganizationId(user) },
     ];
     if (filters.userIds?.length) and.push({ id: { in: filters.userIds } });
-    if (filters.teams?.length) and.push(userTeamFilterWhere(filters.teams));
+    if (filters.teams?.length) and.push(userTeamFilterWhere(filters.teams, user));
     return and.length ? { AND: and } : {};
   }
 

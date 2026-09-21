@@ -19,7 +19,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { getCurrentOrganizationId } from '../common/tenant/tenant-scope.util';
-import { userTeamScopeWhere } from '../common/tenant/team-scope.util';
+import { currentUserTeamWhere, userTeamScopeWhere } from '../common/tenant/team-scope.util';
 import { createHash, randomUUID } from 'node:crypto';
 import { basename, extname, join } from 'node:path';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -489,7 +489,13 @@ export class AttachmentsService {
       const task = await this.prisma.task.findFirst({ where: {
         id: entityId, organizationId: getCurrentOrganizationId(user),
         ...(user.role === UserRole.ADMIN || user.role === UserRole.BOARDS ? {} : {
-          OR: [{ createdById: user.userId }, { assignedToId: user.userId }, ...(user.role === UserRole.MANAGER && user.teamId ? [{ teamId: user.teamId }] : [])],
+          OR: [
+            { createdById: user.userId },
+            { assignedToId: user.userId },
+            ...(user.role === UserRole.MANAGER
+              ? [{ team: currentUserTeamWhere(user) }]
+              : []),
+          ],
         }),
       }, select: { id: true } });
       if (!task) throw new NotFoundException('Task not found');
@@ -669,17 +675,7 @@ export class AttachmentsService {
     }
 
     if (user.role === UserRole.MANAGER) {
-      return user.teamId || user.team
-        ? {
-            company: {
-              owner: userTeamScopeWhere(user),
-            },
-          }
-        : {
-            id: {
-              in: [],
-            },
-          };
+      return { company: { owner: userTeamScopeWhere(user) } };
     }
 
     return {

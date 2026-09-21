@@ -18,10 +18,6 @@ export interface EffectiveMembershipContext {
   organizationId: string;
   role: string;
   roleId: string;
-  team: string | null;
-  teamId: string | null;
-  teamCode: string | null;
-  teamName: string | null;
   source: 'authenticated-membership';
 }
 
@@ -41,15 +37,6 @@ export class OrganizationMembershipsService {
       include: {
         organization: { select: { status: true } },
         role: { select: { id: true, code: true, isActive: true } },
-        team: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            isActive: true,
-            organizationId: true,
-          },
-        },
       },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
@@ -67,12 +54,6 @@ export class OrganizationMembershipsService {
 
     if (!selected && active.length === 1) selected = active[0];
     if (selected) {
-      if (selected.team && selected.team.organizationId !== selected.organizationId) {
-        throw new ForbiddenException('Membership team belongs to another organization');
-      }
-      if (selected.team && !selected.team.isActive) {
-        throw new ForbiddenException('Membership team is inactive');
-      }
       if (selected.role && !selected.role.isActive) {
         throw new ForbiddenException('Membership role is inactive');
       }
@@ -84,10 +65,6 @@ export class OrganizationMembershipsService {
         organizationId: selected.organizationId,
         role: selected.role.code,
         roleId: selected.roleId,
-        team: selected.team?.code ?? null,
-        teamId: selected.teamId,
-        teamCode: selected.team?.code ?? null,
-        teamName: selected.team?.name ?? null,
         source: 'authenticated-membership',
       };
     }
@@ -101,16 +78,19 @@ export class OrganizationMembershipsService {
 
   async createInitialMembership(
     tx: Prisma.TransactionClient,
-    user: Pick<User, 'id' | 'organizationId' | 'teamId' | 'createdAt' | 'lastLoginAt'>,
+    user: Pick<User, 'id' | 'organizationId' | 'createdAt' | 'lastLoginAt'>,
     roleId: string,
+    teamId?: string | null,
   ) {
-    await this.assertTeamOrganization(tx, user.teamId, user.organizationId);
+    await this.assertTeamOrganization(tx, teamId ?? null, user.organizationId);
     return tx.organizationMembership.create({
       data: {
         userId: user.id,
         organizationId: user.organizationId,
         roleId,
-        teamId: user.teamId,
+        ...(teamId && {
+          teams: { create: { teamId } },
+        }),
         status: OrganizationMembershipStatus.ACTIVE,
         isDefault: true,
         joinedAt: user.createdAt,
@@ -120,31 +100,41 @@ export class OrganizationMembershipsService {
     });
   }
 
-  async syncDefaultAssignment(
+  async syncRoleAssignment(
     tx: Prisma.TransactionClient,
     userId: string,
     organizationId: string,
     roleId: string,
-    teamId: string | null,
   ) {
-    await this.assertTeamOrganization(tx, teamId, organizationId);
     return tx.organizationMembership.update({
       where: { userId_organizationId: { userId, organizationId } },
-      data: { roleId, teamId },
+      data: { roleId },
     });
   }
 
-  async syncDefaultTeam(
+  async replaceTeams(
     tx: Prisma.TransactionClient,
     userId: string,
     organizationId: string,
-    teamId: string | null,
+    teamIds: string[],
   ) {
-    await this.assertTeamOrganization(tx, teamId, organizationId);
-    return tx.organizationMembership.update({
+    const uniqueTeamIds = [...new Set(teamIds)];
+    for (const teamId of uniqueTeamIds) {
+      await this.assertTeamOrganization(tx, teamId, organizationId);
+    }
+    const membership = await tx.organizationMembership.findUniqueOrThrow({
       where: { userId_organizationId: { userId, organizationId } },
-      data: { teamId },
+      select: { id: true },
     });
+    await tx.organizationMembershipTeam.deleteMany({
+      where: { membershipId: membership.id },
+    });
+    if (uniqueTeamIds.length) {
+      await tx.organizationMembershipTeam.createMany({
+        data: uniqueTeamIds.map((teamId) => ({ membershipId: membership.id, teamId })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   async suspendForUser(

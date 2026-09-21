@@ -33,7 +33,7 @@ import { ReassignTaskDto } from './dto/reassign-task.dto';
 import { CreateSubtaskDto } from './dto/create-subtask.dto';
 import { FindTaskEntityOptionsDto, FindTaskOptionsDto } from './dto/find-task-options.dto';
 import { getCurrentOrganizationId, tenantScope } from '../common/tenant/tenant-scope.util';
-import { userTeamScopeWhere } from '../common/tenant/team-scope.util';
+import { currentUserTeamWhere, userTeamScopeWhere } from '../common/tenant/team-scope.util';
 import { parseApiDate, parseApiDateRange } from '../common/dates/api-date.util';
 import { SubmitTaskReviewDto, TaskReviewDecisionDto } from './dto/task-review.dto';
 import { CompanyAccessService } from '../companies/company-access.service';
@@ -920,8 +920,8 @@ export class TasksService {
     if (query.view === 'mine') and.push({ assignedToId: user.userId });
     if (query.view === 'created') and.push({ createdById: user.userId });
     if (query.view === 'team') {
-      if (!this.hasPermission(user, 'task:view-team') || !user.teamId) throw new ForbiddenException('Team task visibility is not permitted');
-      and.push({ assignmentScope: TaskAssignmentScope.TEAM, teamId: user.teamId });
+      if (!this.hasPermission(user, 'task:view-team')) throw new ForbiddenException('Team task visibility is not permitted');
+      and.push({ assignmentScope: TaskAssignmentScope.TEAM, team: currentUserTeamWhere(user) });
     }
     if (query.view === 'organization') {
       if (!this.hasPermission(user, 'task:view-organization')) throw new ForbiddenException('Organization task visibility is not permitted');
@@ -1007,14 +1007,10 @@ export class TasksService {
     if (this.hasPermission(user, 'task:view-organization')) return {};
 
     if (user.role === UserRole.MANAGER) {
-      if (!user.teamId && !user.team) {
-        return { id: { in: [] } };
-      }
-
       return {
         OR: [
-          ...(user.teamId && this.hasPermission(user, 'task:view-team')
-            ? [{ assignmentScope: TaskAssignmentScope.TEAM, teamId: user.teamId } as Prisma.TaskWhereInput]
+          ...(this.hasPermission(user, 'task:view-team')
+            ? [{ assignmentScope: TaskAssignmentScope.TEAM, team: currentUserTeamWhere(user) } as Prisma.TaskWhereInput]
             : []),
           { assignedTo: userTeamScopeWhere(user) },
           { createdBy: userTeamScopeWhere(user) },
@@ -1046,8 +1042,8 @@ export class TasksService {
 
     return {
       OR: [
-        ...(user.teamId && this.hasPermission(user, 'task:view-team')
-          ? [{ assignmentScope: TaskAssignmentScope.TEAM, teamId: user.teamId } as Prisma.TaskWhereInput]
+        ...(this.hasPermission(user, 'task:view-team')
+          ? [{ assignmentScope: TaskAssignmentScope.TEAM, team: currentUserTeamWhere(user) } as Prisma.TaskWhereInput]
           : []),
         { assignedToId: user.userId },
         { createdById: user.userId },
@@ -1589,13 +1585,7 @@ export class TasksService {
     }
 
     if (user.role === UserRole.MANAGER) {
-      return user.teamId || user.team
-        ? { owner: userTeamScopeWhere(user) }
-        : {
-            id: {
-              in: [],
-            },
-          };
+      return { owner: userTeamScopeWhere(user) };
     }
 
     return {
@@ -1611,13 +1601,7 @@ export class TasksService {
     }
 
     if (user.role === UserRole.MANAGER) {
-      return user.teamId || user.team
-        ? { company: { owner: userTeamScopeWhere(user) } }
-        : {
-            id: {
-              in: [],
-            },
-          };
+      return { company: { owner: userTeamScopeWhere(user) } };
     }
 
     return {

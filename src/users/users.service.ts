@@ -157,12 +157,15 @@ export class UsersService {
             fullName: dto.fullName,
             email: dto.email,
             passwordHash,
-            team: teamAssignment.team,
-            teamId: teamAssignment.teamId,
             organizationId,
           },
         });
-        await this.memberships.createInitialMembership(tx, created, assignedRole.id);
+        await this.memberships.createInitialMembership(
+          tx,
+          created,
+          assignedRole.id,
+          teamAssignment.teamId,
+        );
         const persisted = await tx.user.findUniqueOrThrow({
           where: { id: created.id },
           select: safeUserSelect,
@@ -196,16 +199,45 @@ export class UsersService {
       { organizationId: getCurrentOrganizationId(actor) },
     ];
 
-    if (query.role) and.push({ role: query.role });
-    if (query.teamId) and.push({ teamId: query.teamId });
+    const organizationId = getCurrentOrganizationId(actor);
+    if (query.role) {
+      and.push({
+        organizationMemberships: {
+          some: {
+            organizationId,
+            role: { baseRole: query.role },
+          },
+        },
+      });
+    }
+    if (query.teamId) {
+      and.push({
+        organizationMemberships: {
+          some: {
+            organizationId,
+            teams: { some: { teamId: query.teamId } },
+          },
+        },
+      });
+    }
     if (query.team?.trim()) {
       const team = query.team.trim();
       and.push({
-        OR: [
-          { team },
-          { teamRef: { code: { equals: team, mode: 'insensitive' } } },
-          { teamRef: { name: { equals: team, mode: 'insensitive' } } },
-        ],
+        organizationMemberships: {
+          some: {
+            organizationId,
+            teams: {
+              some: {
+                team: {
+                  OR: [
+                    { code: { equals: team, mode: 'insensitive' } },
+                    { name: { equals: team, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          },
+        },
       });
     }
     if (query.isActive !== undefined) and.push({ isActive: query.isActive });
@@ -373,8 +405,6 @@ export class UsersService {
       where: { userId_organizationId: { userId: id, organizationId } },
       select: {
         roleId: true,
-        teamId: true,
-        team: { select: { code: true } },
         user: {
           select: {
             ...safeUserSelect,
@@ -389,33 +419,29 @@ export class UsersService {
     }
     const user = membership.user;
 
-    const teamAssignment = await this.resolveTeamAssignment(
-      dto.teamId,
-      dto.team,
-      actor,
-      {
-        teamId: membership.teamId,
-        team: membership.team?.code ?? null,
-      },
-    );
+    const teamAssignment =
+      dto.teamId !== undefined || dto.team !== undefined
+        ? await this.resolveTeamAssignment(dto.teamId, dto.team, actor)
+        : null;
 
     const updatedUser = await this.prisma.$transaction(async (tx) => {
       const assignedRole = await resolveMembershipRole(tx, organizationId, { roleId: dto.roleId, legacyRole: dto.role });
-      if (assignedRole.baseRole === UserRole.MANAGER && user.ownedCompanies.length > 0 && !teamAssignment.teamId && !teamAssignment.team) {
-        throw new BadRequestException('A manager with owned companies must have a team');
-      }
       if (actor?.userId === id) {
         const grants = await tx.rolePermission.findMany({ where: { roleId: assignedRole.id, permission: { isActive: true } }, select: { permission: { select: { action: true } } } });
         const actions = new Set(grants.map((item) => item.permission.action));
         if (!actions.has('permission:manage') || !actions.has('role:manage')) throw new BadRequestException('You cannot remove your own RBAC management access');
       }
-      await this.memberships.syncDefaultAssignment(tx, id, organizationId, assignedRole.id, teamAssignment.teamId);
+      await this.memberships.syncRoleAssignment(tx, id, organizationId, assignedRole.id);
+      if (teamAssignment) {
+        await this.memberships.replaceTeams(
+          tx,
+          id,
+          organizationId,
+          teamAssignment.teamId ? [teamAssignment.teamId] : [],
+        );
+      }
       const { ownedCompanies: _ownedCompanies, ...publicUser } = user;
-      const result = {
-        ...publicUser,
-        team: teamAssignment.team,
-        teamId: teamAssignment.teamId,
-      };
+      const result = publicUser;
       await tx.organization.update({
         where: { id: organizationId },
         data: { authorizationVersion: { increment: 1 } },

@@ -20,7 +20,7 @@ export class ReportingScopeService {
         { organizationId: getCurrentOrganizationId(user), archivedAt: null },
         ...(f.companyIds?.length ? [{ id: { in: f.companyIds } }] : []),
         ...(f.ownerIds?.length ? [{ ownerId: { in: f.ownerIds } }] : []),
-        ...(f.teams?.length ? [{ owner: userTeamFilterWhere(f.teams) }] : []),
+        ...(f.teams?.length ? [{ owner: userTeamFilterWhere(f.teams, user) }] : []),
         ...this.companyOwnership(f.ownershipScope, user),
       ],
     };
@@ -39,7 +39,7 @@ export class ReportingScopeService {
         ...(active ? [activeOpportunityStateWhere()] : []),
         ...(f.companyIds?.length ? [{ companyId: { in: f.companyIds } }] : []),
         ...(f.ownerIds?.length ? [{ ownerId: { in: f.ownerIds } }] : []),
-        ...(f.teams?.length ? [{ owner: userTeamFilterWhere(f.teams) }] : []),
+        ...(f.teams?.length ? [{ owner: userTeamFilterWhere(f.teams, user) }] : []),
         ...(f.stages?.length
           ? [
               {

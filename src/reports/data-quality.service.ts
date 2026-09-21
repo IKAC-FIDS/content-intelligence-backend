@@ -495,7 +495,7 @@ export class DataQualityService {
       ...(q.companyIds?.length ? [{ companyId: { in: q.companyIds } }] : []),
       ...(q.ownerIds?.length ? [{ assignedToId: { in: q.ownerIds } }] : []),
       ...(q.teams?.length
-        ? [{ assignedTo: userTeamFilterWhere(q.teams) }]
+        ? [{ assignedTo: userTeamFilterWhere(q.teams, user) }]
         : []),
       ...(q.ownershipScope === OwnershipScope.MINE
         ? [{ assignedToId: user.userId }]
@@ -513,7 +513,7 @@ export class DataQualityService {
     return [
       ...(q.companyIds?.length ? [{ companyId: { in: q.companyIds } }] : []),
       ...(q.ownerIds?.length ? [{ organizerId: { in: q.ownerIds } }] : []),
-      ...(q.teams?.length ? [{ organizer: userTeamFilterWhere(q.teams) }] : []),
+      ...(q.teams?.length ? [{ organizer: userTeamFilterWhere(q.teams, user) }] : []),
       ...(q.ownershipScope === OwnershipScope.MINE
         ? [{ organizerId: user.userId }]
         : q.ownershipScope === OwnershipScope.TEAM

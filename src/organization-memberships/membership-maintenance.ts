@@ -198,6 +198,9 @@ export async function backfillMemberships(
             organizationId: user.organizationId,
             roleId: user.roleId,
             teamId: user.teamId,
+            ...(user.teamId && {
+              teams: { create: { teamId: user.teamId } },
+            }),
             status: OrganizationMembershipStatus.ACTIVE,
             isDefault: true,
             joinedAt: user.createdAt,

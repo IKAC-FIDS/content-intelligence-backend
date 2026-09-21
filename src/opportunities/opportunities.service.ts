@@ -22,7 +22,7 @@ import {
   tenantScope,
 } from '../common/tenant/tenant-scope.util';
 import {
-  userMatchesTeam,
+  usersShareTeam,
   userTeamScopeWhere,
 } from '../common/tenant/team-scope.util';
 import { parseApiDate, parseApiDateRange } from '../common/dates/api-date.util';
@@ -876,17 +876,7 @@ export class OpportunitiesService {
     }
 
     if (user.role === UserRole.MANAGER) {
-      return user.teamId || user.team
-        ? {
-            company: {
-              owner: userTeamScopeWhere(user),
-            },
-          }
-        : {
-            id: {
-              in: [],
-            },
-          };
+      return { company: { owner: userTeamScopeWhere(user) } };
     }
 
     return {
@@ -971,7 +961,10 @@ export class OpportunitiesService {
       throw new ForbiddenException('REP can only assign opportunities to self');
     }
 
-    if (user.role === UserRole.MANAGER && !userMatchesTeam(owner, user)) {
+    if (
+      user.role === UserRole.MANAGER &&
+      !(await usersShareTeam(this.prisma, owner.id, user))
+    ) {
       throw new ForbiddenException('Owner must belong to the manager team');
     }
   }
