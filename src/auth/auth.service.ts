@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { AuditActorType, AuditResult, AuditSource, User, UserRole } from '@prisma/client';
+import { AuditActorType, AuditResult, AuditSource, User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash } from 'node:crypto';
 import type { Request } from 'express';
@@ -26,7 +26,7 @@ export interface AuthUserResponse {
   id: string;
   fullName: string;
   email: string;
-  role: UserRole;
+  role: string;
   organizationId: string | null;
   permissions: string[];
   roleId: string | null;
@@ -238,15 +238,11 @@ export class AuthService {
   ): Promise<AuthAccessResponse> {
     const effective =
       resolved === undefined ? await this.resolveLoginContext(user.id) : resolved;
-    const effectiveRole = effective?.role ?? user.role;
-    const effectiveRoleId = effective?.roleId ?? user.roleId;
-    const assignedRole = effectiveRoleId
-      ? await this.prisma.role.findUnique({ where: { id: effectiveRoleId } })
-      : null;
+    const roleCode = effective?.roleCode ?? 'PLATFORM_ADMIN';
+    const roleName = effective?.roleName ?? 'Platform Admin';
     const payload = {
       sub: user.id,
       email: user.email,
-      role: effectiveRole,
       ...(effective && {
         organizationId: effective.organizationId,
         activeOrganizationId: effective.organizationId,
@@ -263,12 +259,12 @@ export class AuthService {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: effectiveRole,
+        role: roleCode,
         organizationId: effective?.organizationId ?? null,
         permissions: effective ? [...effective.permissions] : [],
-        roleId: assignedRole?.id ?? null,
-        roleCode: assignedRole?.code ?? effectiveRole,
-        roleName: assignedRole?.name ?? effectiveRole,
+        roleId: effective?.roleId ?? null,
+        roleCode,
+        roleName,
         avatarObjectKey: user.avatarObjectKey,
       },
     };

@@ -22,7 +22,7 @@ describe('auth HTTP session contract', () => {
   const env = { ...process.env };
   const user = { id: 'user-test', fullName: 'Synthetic', email: 'user@example.test', role: 'REP', roleId: null, isActive: true, passwordHash: hashSync('synthetic-password', 4), failedLoginAttempts: 0 };
   const rows = new Map<string, any>();
-  const tenant = { organizationId: 'tenant-test', membershipId: 'membership-test', role: 'REP', roleId: null, permissions: [], userId: user.id };
+  const tenant = { organizationId: 'tenant-test', membershipId: 'membership-test', role: 'CONTENT_READER', roleId: 'role-content-reader', roleCode: 'CONTENT_READER', roleName: 'Content Reader', permissions: [], userId: user.id };
   const resolver = { resolveAuthenticatedTenant: jest.fn(async () => tenant), selectTenant: jest.fn(async () => ({ ...tenant, organizationId: 'tenant-next' })) };
   const config = new ConfigService({ JWT_SECRET: 'synthetic-test-secret-at-least-32-characters' });
   const jwt = new JwtService({ secret: config.get('JWT_SECRET'), signOptions: { expiresIn: '15m' } });
@@ -33,7 +33,6 @@ describe('auth HTTP session contract', () => {
   });
   const prisma: any = {
     user: { findUnique: jest.fn(async ({ where }: any) => where.email === user.email || where.id === user.id ? { ...user } : null), update: jest.fn(async () => user) },
-    role: { findUnique: jest.fn(async () => null) },
     organizationSettings: { findUnique: jest.fn(async () => null) },
     refreshSession: {
       findUnique: jest.fn(async ({ where }: any) => { const row = [...rows.values()].find(r => matches(r, where)); return row ? { ...row, user: { ...user } } : null; }),

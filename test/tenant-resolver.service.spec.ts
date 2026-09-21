@@ -19,7 +19,13 @@ function membership(overrides: Record<string, unknown> = {}) {
     isDefault: true,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     organization: { id: 'org-a', status: OrganizationStatus.ACTIVE },
-    role: { id: 'role-a', baseRole: UserRole.MANAGER, isActive: true },
+    role: {
+      id: 'role-a',
+      code: 'CONTENT_MANAGER',
+      name: 'Content Manager',
+      baseRole: UserRole.MANAGER,
+      isActive: true,
+    },
     team: {
       id: 'team-a',
       code: 'TEAM_A',
@@ -66,7 +72,9 @@ describe('TenantResolverService', () => {
     ).resolves.toMatchObject({
       organizationId: 'org-a',
       membershipId: 'membership-a',
-      role: UserRole.MANAGER,
+      role: 'CONTENT_MANAGER',
+      roleCode: 'CONTENT_MANAGER',
+      roleName: 'Content Manager',
       permissions: ['company:view'],
       resolutionSource: 'token-session',
       requestId: 'request-1',
@@ -321,7 +329,9 @@ describe('TenantResolverService', () => {
     expect(context).toMatchObject({
       organizationId: 'org-a',
       membershipId,
-      role: UserRole.MANAGER,
+      role: 'CONTENT_MANAGER',
+      roleCode: 'CONTENT_MANAGER',
+      roleName: 'Content Manager',
       roleId: 'role-a',
       permissions: ['content:view'],
     });

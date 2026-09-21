@@ -2,48 +2,35 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
 } from '@nestjs/common';
 import {
   OrganizationMembershipStatus,
   OrganizationStatus,
   Prisma,
   User,
-  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-type LegacyUserContext = Pick<
-  User,
-  | 'id'
-  | 'organizationId'
-  | 'role'
-  | 'roleId'
-  | 'team'
-  | 'teamId'
-  | 'isActive'
->;
+type MembershipUserContext = Pick<User, 'id' | 'isActive'>;
 
 export interface EffectiveMembershipContext {
   membershipId: string | null;
   organizationId: string;
-  role: UserRole;
-  roleId: string | null;
+  role: string;
+  roleId: string;
   team: string | null;
   teamId: string | null;
   teamCode: string | null;
   teamName: string | null;
-  source: 'authenticated-membership' | 'migration-compatibility';
+  source: 'authenticated-membership';
 }
 
 @Injectable()
 export class OrganizationMembershipsService {
-  private readonly logger = new Logger(OrganizationMembershipsService.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
   async resolveEffectiveContext(
-    user: LegacyUserContext,
+    user: MembershipUserContext,
   ): Promise<EffectiveMembershipContext> {
     if (!user.isActive) {
       throw new ForbiddenException('User is inactive');
@@ -53,7 +40,7 @@ export class OrganizationMembershipsService {
       where: { userId: user.id },
       include: {
         organization: { select: { status: true } },
-        role: { select: { id: true, baseRole: true, isActive: true } },
+        role: { select: { id: true, code: true, isActive: true } },
         team: {
           select: {
             id: true,
@@ -79,18 +66,6 @@ export class OrganizationMembershipsService {
     let selected = defaults.length === 1 ? defaults[0] : undefined;
 
     if (!selected && active.length === 1) selected = active[0];
-    if (!selected && active.length > 1) {
-      const legacyMatches = active.filter(
-        (membership) => membership.organizationId === user.organizationId,
-      );
-      if (legacyMatches.length === 1) {
-        selected = legacyMatches[0];
-        this.logger.warn(
-          `Membership compatibility selection used userId=${user.id} membershipId=${selected.id}`,
-        );
-      }
-    }
-
     if (selected) {
       if (selected.team && selected.team.organizationId !== selected.organizationId) {
         throw new ForbiddenException('Membership team belongs to another organization');
@@ -101,64 +76,27 @@ export class OrganizationMembershipsService {
       if (selected.role && !selected.role.isActive) {
         throw new ForbiddenException('Membership role is inactive');
       }
+      if (!selected.roleId || !selected.role) {
+        throw new ForbiddenException('Membership role is required');
+      }
       return {
         membershipId: selected.id,
         organizationId: selected.organizationId,
-        role: selected.role?.baseRole ?? user.role,
+        role: selected.role.code,
         roleId: selected.roleId,
-        team: selected.team?.code ?? user.team,
+        team: selected.team?.code ?? null,
         teamId: selected.teamId,
-        teamCode: selected.team?.code ?? user.team,
+        teamCode: selected.team?.code ?? null,
         teamName: selected.team?.name ?? null,
         source: 'authenticated-membership',
       };
     }
 
-    if (memberships.length > 0) {
-      throw new ForbiddenException('No active organization membership');
-    }
-
-    const legacyOrganization = await this.prisma.organization.findFirst({
-      where: { id: user.organizationId, status: OrganizationStatus.ACTIVE },
-      select: { id: true },
-    });
-    if (!legacyOrganization) {
-      throw new ForbiddenException('No active organization membership');
-    }
-    const legacyTeam = user.teamId
-      ? await this.prisma.team.findFirst({
-          where: {
-            id: user.teamId,
-            organizationId: user.organizationId,
-            isActive: true,
-          },
-          select: { id: true, code: true, name: true },
-        })
-      : null;
-    if (user.teamId && !legacyTeam) {
-      throw new ForbiddenException('Legacy team is invalid or belongs to another organization');
-    }
-    const legacyRole = user.roleId
-      ? await this.prisma.role.findFirst({
-          where: { id: user.roleId, isActive: true },
-          select: { id: true },
-        })
-      : null;
-    if (user.roleId && !legacyRole) {
-      throw new ForbiddenException('Legacy role is invalid or inactive');
-    }
-    this.logger.warn(`Legacy membership fallback used userId=${user.id}`);
-    return {
-      membershipId: null,
-      organizationId: user.organizationId,
-      role: user.role,
-      roleId: user.roleId,
-      team: legacyTeam?.code ?? user.team,
-      teamId: legacyTeam?.id ?? null,
-      teamCode: legacyTeam?.code ?? user.team,
-      teamName: legacyTeam?.name ?? null,
-      source: 'migration-compatibility',
-    };
+    throw new ForbiddenException(
+      active.length > 1
+        ? 'Tenant selection is required'
+        : 'No active organization membership',
+    );
   }
 
   async createInitialMembership(

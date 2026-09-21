@@ -10,7 +10,6 @@ import { AuditRequestContextService } from '../audit-log/audit-request-context.s
 interface JwtPayload {
   sub?: string;
   email?: string;
-  role?: string;
   organizationId?: string | null;
   activeOrganizationId?: string | null;
   membershipId?: string | null;
@@ -38,7 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(req: Request, payload: JwtPayload) {
-    if (!payload?.sub || !payload.email || !payload.role) {
+    if (!payload?.sub || !payload.email) {
       throw new UnauthorizedException('Invalid token payload');
     }
 
@@ -61,7 +60,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       userId: payload.sub,
       email: payload.email,
-      role: effective.role,
+      role: effective.roleCode,
       roleId: effective.roleId,
       organizationId: effective.organizationId,
       activeOrganizationId: effective.organizationId,

@@ -7,7 +7,6 @@ import {
 import {
   OrganizationMembershipStatus,
   OrganizationStatus,
-  UserRole,
 } from '@prisma/client';
 import NodeCache from 'node-cache';
 
@@ -26,8 +25,10 @@ export interface TenantClaimPair {
 }
 
 export interface ResolvedTenantContext extends TenantContext {
-  readonly role: UserRole;
-  readonly roleId: string | null;
+  readonly role: string;
+  readonly roleId: string;
+  readonly roleCode: string;
+  readonly roleName: string;
 }
 
 type ResolutionOptions = {
@@ -54,7 +55,7 @@ export class TenantResolverService {
   ): Promise<ResolvedTenantContext> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, isActive: true, role: true },
+      select: { id: true, isActive: true },
     });
 
     if (!user?.isActive) {
@@ -125,7 +126,7 @@ export class TenantResolverService {
   ): Promise<ResolvedTenantContext> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, isActive: true, role: true },
+      select: { id: true, isActive: true },
     });
 
     if (!user?.isActive) {
@@ -155,7 +156,8 @@ export class TenantResolverService {
     role: {
       select: {
         id: true,
-        baseRole: true,
+        code: true,
+        name: true,
         isActive: true,
         scope: true,
         organizationId: true,
@@ -171,7 +173,7 @@ export class TenantResolverService {
   }
 
   private async buildContext(
-    user: { id: string; isActive: boolean; role: UserRole },
+    user: { id: string; isActive: boolean },
     membership: MembershipRow,
     organizationId: string,
     source: TenantResolutionSource,
@@ -209,7 +211,7 @@ export class TenantResolverService {
       throw new UnauthorizedException('Invalid tenant session context');
     }
 
-    const role = membership.role.baseRole;
+    const roleCode = membership.role.code;
     const cacheKey =
       `tenant-authz:${membership.organizationId}:${user.id}:` +
       `${membership.id}:${membership.organization.authorizationVersion}`;
@@ -234,15 +236,17 @@ export class TenantResolverService {
       organizationId: membership.organizationId,
       userId: user.id,
       membershipId: membership.id,
-      tenantRole: role,
+      tenantRole: roleCode,
       permissions,
       authorizationVersion: membership.organization.authorizationVersion,
       platformAdmin: false,
       membershipStatus: 'active',
       resolutionSource: source,
       requestId: requestId ?? null,
-      role,
+      role: roleCode,
       roleId: membership.roleId,
+      roleCode,
+      roleName: membership.role.name,
     };
   }
 

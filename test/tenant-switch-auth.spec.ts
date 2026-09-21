@@ -14,14 +14,16 @@ const context = (organizationId: string, membershipId: string) => ({
   organizationId,
   userId: account.id,
   membershipId,
-  tenantRole: UserRole.MANAGER,
+  tenantRole: 'CONTENT_MANAGER',
   permissions: ['company:view'],
   platformAdmin: false as const,
   membershipStatus: 'active' as const,
   resolutionSource: 'explicit-selection' as const,
   requestId: 'request-switch',
-  role: UserRole.MANAGER,
+  role: 'CONTENT_MANAGER',
   roleId: 'role-manager',
+  roleCode: 'CONTENT_MANAGER',
+  roleName: 'Content Manager',
   team: null,
   teamId: null,
   teamCode: null,
@@ -29,15 +31,7 @@ const context = (organizationId: string, membershipId: string) => ({
 });
 
 function setup() {
-  const prisma = {
-    role: {
-      findUnique: jest.fn().mockResolvedValue({
-        id: 'role-manager',
-        code: 'MANAGER',
-        name: 'Manager',
-      }),
-    },
-  };
+  const prisma = {};
   const jwt = { signAsync: jest.fn().mockResolvedValue('new-access-token') };
   const refresh = {
     getActiveSession: jest.fn().mockResolvedValue({
@@ -122,6 +116,7 @@ describe('AuthService Tenant switch', () => {
         membershipId: 'membership-b',
       }),
     );
+    expect(jwt.signAsync.mock.calls[0][0]).not.toHaveProperty('role');
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'tenant.switched',
@@ -129,6 +124,12 @@ describe('AuthService Tenant switch', () => {
       }),
     );
     expect(result.refreshToken).toBe('new-refresh-token');
+    expect(result.user).toMatchObject({
+      role: 'CONTENT_MANAGER',
+      roleId: 'role-manager',
+      roleCode: 'CONTENT_MANAGER',
+      roleName: 'Content Manager',
+    });
   });
 
   it.each([

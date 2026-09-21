@@ -5,7 +5,8 @@ import type { TenantContext } from '../tenant/tenant-context.types';
 export interface CurrentUserPayload {
   userId: string;
   email: string;
-  role: 'ADMIN' | 'MANAGER' | 'REP' | 'BOARDS';
+  /** Compatibility display value sourced from the active Membership Role code. */
+  role: string;
   roleId?: string | null;
 
   // Temporary compatibility for detached legacy CRM modules.

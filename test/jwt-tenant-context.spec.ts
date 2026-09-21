@@ -1,4 +1,3 @@
-import { UserRole } from '@prisma/client';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
 
 describe('JwtStrategy Tenant boundary', () => {
@@ -7,8 +6,10 @@ describe('JwtStrategy Tenant boundary', () => {
       resolveAuthenticatedTenant: jest.fn().mockResolvedValue({
         organizationId: 'org-a',
         membershipId: 'membership-a',
-        role: UserRole.MANAGER,
+        role: 'CONTENT_MANAGER',
         roleId: 'role-a',
+        roleCode: 'CONTENT_MANAGER',
+        roleName: 'Content Manager',
         team: null,
         teamId: null,
         teamCode: null,
@@ -36,7 +37,6 @@ describe('JwtStrategy Tenant boundary', () => {
     const result = await strategy.validate(req, {
       sub: 'user-a',
       email: 'user@example.test',
-      role: UserRole.MANAGER,
       organizationId: 'legacy-org',
       activeOrganizationId: 'org-a',
       membershipId: 'membership-a',
@@ -52,6 +52,8 @@ describe('JwtStrategy Tenant boundary', () => {
       organizationId: 'org-a',
       activeOrganizationId: 'org-a',
       membershipId: 'membership-a',
+      role: 'CONTENT_MANAGER',
+      roleId: 'role-a',
     });
   });
 });

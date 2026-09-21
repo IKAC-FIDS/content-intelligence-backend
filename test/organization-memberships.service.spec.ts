@@ -26,7 +26,12 @@ const membership = (overrides: Record<string, unknown> = {}) => ({
   isDefault: true,
   createdAt: new Date('2026-01-01T00:00:00Z'),
   organization: { status: OrganizationStatus.ACTIVE },
-  role: { id: 'role-1', baseRole: UserRole.MANAGER, isActive: true },
+  role: {
+    id: 'role-1',
+    code: 'CONTENT_MANAGER',
+    baseRole: UserRole.MANAGER,
+    isActive: true,
+  },
   team: {
     id: 'team-1',
     code: 'TEAM_ONE',
@@ -43,9 +48,6 @@ function setup(rows: any[] = [membership()]) {
       findMany: jest.fn().mockResolvedValue(rows),
       update: jest.fn(),
     },
-    organization: { findFirst: jest.fn() },
-    team: { findFirst: jest.fn() },
-    role: { findFirst: jest.fn().mockResolvedValue({ id: 'role-legacy' }) },
   };
   return { prisma, service: new OrganizationMembershipsService(prisma as any) };
 }
@@ -56,7 +58,7 @@ describe('OrganizationMembershipsService effective context', () => {
     await expect(service.resolveEffectiveContext(user)).resolves.toMatchObject({
       membershipId: 'membership-1',
       organizationId: 'org-1',
-      role: UserRole.MANAGER,
+      role: 'CONTENT_MANAGER',
       roleId: 'role-1',
       teamId: 'team-1',
       source: 'authenticated-membership',
@@ -70,15 +72,14 @@ describe('OrganizationMembershipsService effective context', () => {
     });
   });
 
-  it('uses the legacy organization match for multiple active Memberships without a default', async () => {
+  it('does not use the global User organization to resolve ambiguous Memberships', async () => {
     const { service } = setup([
       membership({ id: 'other', organizationId: 'org-other', isDefault: false, team: null, teamId: null }),
       membership({ id: 'legacy-match', organizationId: 'org-legacy', isDefault: false, team: null, teamId: null }),
     ]);
-    await expect(service.resolveEffectiveContext(user)).resolves.toMatchObject({
-      membershipId: 'legacy-match',
-      organizationId: 'org-legacy',
-    });
+    await expect(service.resolveEffectiveContext(user)).rejects.toThrow(
+      'Tenant selection is required',
+    );
   });
 
   it('fails closed when multiple active Memberships remain ambiguous', async () => {
@@ -120,43 +121,17 @@ describe('OrganizationMembershipsService effective context', () => {
     );
   });
 
-  it('uses the centralized legacy fallback only when no Membership exists', async () => {
-    const { prisma, service } = setup([]);
-    prisma.organization.findFirst.mockResolvedValue({ id: 'org-legacy' });
-    prisma.team.findFirst.mockResolvedValue({
-      id: 'team-legacy',
-      code: 'LEGACY',
-      name: 'Legacy Team',
-    });
-    await expect(service.resolveEffectiveContext(user)).resolves.toMatchObject({
-      organizationId: 'org-legacy',
-      source: 'migration-compatibility',
-    });
-  });
-
-  it('rejects fallback when the legacy Organization is not active', async () => {
+  it('does not authorize global User fields when no Membership exists', async () => {
     const { service } = setup([]);
     await expect(service.resolveEffectiveContext(user)).rejects.toThrow(
       'No active organization membership',
     );
   });
 
-  it('rejects fallback when the legacy Team is invalid or cross-organization', async () => {
-    const { prisma, service } = setup([]);
-    prisma.organization.findFirst.mockResolvedValue({ id: 'org-legacy' });
-    prisma.team.findFirst.mockResolvedValue(null);
+  it('requires an active roleId-backed Membership Role', async () => {
+    const { service } = setup([membership({ roleId: null, role: null })]);
     await expect(service.resolveEffectiveContext(user)).rejects.toThrow(
-      'Legacy team is invalid or belongs to another organization',
-    );
-  });
-
-  it('rejects fallback when the legacy Role is invalid or inactive', async () => {
-    const { prisma, service } = setup([]);
-    prisma.organization.findFirst.mockResolvedValue({ id: 'org-legacy' });
-    prisma.team.findFirst.mockResolvedValue({ id: 'team-legacy' });
-    prisma.role.findFirst.mockResolvedValue(null);
-    await expect(service.resolveEffectiveContext(user)).rejects.toThrow(
-      'Legacy role is invalid or inactive',
+      'Membership role is required',
     );
   });
 
