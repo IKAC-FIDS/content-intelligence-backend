@@ -51,18 +51,6 @@ const safeUserSelect = {
   updatedAt: true,
 } satisfies Prisma.UserSelect;
 
-const ownerOptionSelect = {
-  id: true,
-  fullName: true,
-  email: true,
-  role: true,
-  roleId: true,
-  teamId: true,
-  team: true,
-  avatarObjectKey: true,
-  teamRef: { select: { id: true, code: true, name: true } },
-} satisfies Prisma.UserSelect;
-
 @Injectable()
 export class UsersService {
   constructor(

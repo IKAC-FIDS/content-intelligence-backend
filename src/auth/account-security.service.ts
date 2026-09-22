@@ -22,8 +22,6 @@ export class AccountSecurityService {
         id: true,
         fullName: true,
         email: true,
-        role: true,
-        team: true,
         isActive: true,
         passwordChangedAt: true,
         lastLoginAt: true,
