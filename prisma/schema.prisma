@@ -98,22 +98,6 @@ enum SsoRoutingKind {
   SUBDOMAIN
 }
 
-enum FileAttachmentEntityType {
-  COMPANY
-  OPPORTUNITY
-  PERSON
-  TASK
-  ACTIVITY
-  COMMERCIAL_DOCUMENT
-  PAYMENT
-  COMPANY_LEGAL_DOCUMENT
-  MEETING
-  PRODUCT
-  ORGANIZATION
-  TECHNICAL_DOCUMENT
-  TECHNICAL_RESOURCE
-}
-
 enum AttachmentStorageProvider {
   LOCAL
   MINIO
@@ -1075,7 +1059,7 @@ model UsageEvent {
 model FileAttachment {
   id String @id @default(uuid())
 
-  entityType FileAttachmentEntityType
+  entityType String
   entityId   String
 
   type            ArtifactType              @default(FILE)
