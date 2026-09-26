@@ -26,11 +26,13 @@ npm run start:dev
 
 Copy `.env.example` to `.env` and set at least `DATABASE_URL`, `JWT_SECRET`, and the allowed origin values before starting the API.
 
-The seed is intentionally foundation-only. It creates the default tenant, system permissions, system roles, and a generic team. A default administrator is created only when `SEED_ADMIN_PASSWORD` is explicitly set; `SEED_ADMIN_EMAIL` is optional.
+The Foundation Seed synchronizes only required system metadata: retained API permissions and the protected tenant `ADMIN` role with its permission mappings. It does not create a tenant, user, membership, Team, Platform Admin, plan, entitlement, quota, SSO provider, or demo data.
 
 ```bash
-SEED_ADMIN_PASSWORD='replace-with-a-strong-password' npm run seed
+npm run seed
 ```
+
+Create tenants through the platform organization provisioning API. Grant Platform Admin authority separately with the reviewed `platform-admin:grant` maintenance command; the seed never accepts or creates default credentials.
 
 ## Validation
 

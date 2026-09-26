@@ -21,12 +21,12 @@ describe('fix 000086 Tenant-scoped Team code migration', () => {
     expect(migration).not.toMatch(/UPDATE\s+"teams"/i);
   });
 
-  it('uses Tenant-qualified runtime and seed selectors', () => {
+  it('uses Tenant-qualified runtime selectors without requiring a seeded Team', () => {
     const service = readFileSync(join(root, 'src/teams/teams.service.ts'), 'utf8');
     const seed = readFileSync(join(root, 'prisma/seed.ts'), 'utf8');
 
     expect(service).toContain('organizationId_code: { organizationId, code }');
-    expect(seed).toContain('organizationId_code:');
+    expect(seed).not.toContain('prisma.team');
     expect(service).not.toContain('findUnique({ where: { code } })');
   });
 });

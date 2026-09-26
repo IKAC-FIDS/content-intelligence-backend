@@ -1,13 +1,13 @@
-import { OrganizationMembershipStatus, PrismaClient, UserRole } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import {
+  Prisma,
+  PrismaClient,
+  RoleScope,
+  UserRole,
+} from '@prisma/client';
 
-const prisma = new PrismaClient();
-const DEFAULT_ORGANIZATION_ID = '00000000-0000-4000-8000-000000000001';
-
-const permissions = [
+export const FOUNDATION_PERMISSIONS = [
   ['user:view', 'View tenant users'],
   ['user:create', 'Create tenant users'],
-  ['user:update', 'Update tenant users'],
   ['user:manage', 'Manage tenant users'],
   ['user:activate', 'Activate tenant users'],
   ['user:deactivate', 'Deactivate tenant users'],
@@ -25,121 +25,107 @@ const permissions = [
   ['team:manage', 'Manage teams'],
   ['sso-provider:view', 'View SSO providers'],
   ['sso-provider:manage', 'Manage SSO providers'],
-  ['session:view', 'View sessions'],
-  ['session:revoke', 'Revoke own sessions'],
-  ['session:manage', 'Manage user sessions'],
 ] as const;
 
-const rolePermissions: Record<UserRole, string[]> = {
-  ADMIN: permissions.map(([action]) => action),
-  MANAGER: [
-    'user:view', 'user:create', 'user:update', 'user:manage',
-    'user:activate', 'user:deactivate', 'user:change-role',
-    'role:view', 'audit-log:view', 'organization:view',
-    'team:view', 'team:manage', 'session:view', 'session:revoke',
-  ],
-  REP: ['user:view', 'organization:view', 'team:view', 'session:view', 'session:revoke'],
-  BOARDS: ['user:view', 'organization:view', 'team:view', 'audit-log:view'],
-};
+const ADMIN_ROLE = {
+  code: UserRole.ADMIN,
+  name: 'Tenant Administrator',
+  baseRole: UserRole.ADMIN,
+  scope: RoleScope.SYSTEM,
+} as const;
 
-async function syncSystemRole(role: UserRole) {
-  const record = await prisma.role.upsert({
-    where: { code: role },
-    update: { name: role, baseRole: role, isSystem: true, isActive: true },
-    create: { code: role, name: role, baseRole: role, isSystem: true, isActive: true },
-  });
+type SeedClient = PrismaClient | Prisma.TransactionClient;
 
-  for (const action of rolePermissions[role]) {
-    const permission = await prisma.permission.findUniqueOrThrow({ where: { action } });
-    await prisma.rolePermission.upsert({
-      where: { role_permissionId: { role, permissionId: permission.id } },
-      update: { roleId: record.id },
-      create: { role, roleId: record.id, permissionId: permission.id },
-    });
-  }
-  return record;
-}
-
-async function main() {
-  const organization = await prisma.organization.upsert({
-    where: { code: 'default' },
-    update: { name: 'Default Organization', status: 'ACTIVE' },
-    create: {
-      id: DEFAULT_ORGANIZATION_ID,
-      code: 'default',
-      name: 'Default Organization',
-      status: 'ACTIVE',
-      timezone: 'Asia/Tehran',
-      locale: 'fa-IR',
-    },
-  });
-
-  for (const [action, description] of permissions) {
+async function syncPermissions(prisma: SeedClient) {
+  for (const [action, description] of FOUNDATION_PERMISSIONS) {
     await prisma.permission.upsert({
       where: { action },
       update: { description, isSystem: true, isActive: true },
       create: { action, description, isSystem: true, isActive: true },
     });
   }
-
-  const roles = new Map<UserRole, Awaited<ReturnType<typeof syncSystemRole>>>();
-  for (const role of Object.values(UserRole)) roles.set(role, await syncSystemRole(role));
-
-  await prisma.team.upsert({
-    where: {
-      organizationId_code: {
-        organizationId: organization.id,
-        code: 'GENERAL',
-      },
-    },
-    update: { name: 'General', isActive: true },
-    create: {
-      organizationId: organization.id,
-      code: 'GENERAL',
-      name: 'General',
-    },
-  });
-
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
-  if (!adminPassword) {
-    console.log('Foundation seed complete; SEED_ADMIN_PASSWORD was not set, so no default account was created.');
-    return;
-  }
-
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? 'admin@yourcompany.com').trim().toLowerCase();
-  const adminRole = roles.get(UserRole.ADMIN)!;
-  const user = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { fullName: 'Platform Administrator', isActive: true },
-    create: {
-      fullName: 'Platform Administrator',
-      email: adminEmail,
-      passwordHash: await bcrypt.hash(adminPassword, 12),
-      role: UserRole.ADMIN,
-      roleId: adminRole.id,
-      organizationId: organization.id,
-      isActive: true,
-    },
-  });
-  await prisma.organizationMembership.upsert({
-    where: { userId_organizationId: { userId: user.id, organizationId: organization.id } },
-    update: { roleId: adminRole.id, status: OrganizationMembershipStatus.ACTIVE, isDefault: true },
-    create: {
-      userId: user.id,
-      organizationId: organization.id,
-      roleId: adminRole.id,
-      status: OrganizationMembershipStatus.ACTIVE,
-      isDefault: true,
-      isTenantOwner: true,
-      joinedAt: new Date(),
-    },
-  });
-  console.log(`Foundation seed complete; admin account ready: ${adminEmail}`);
 }
 
-main()
-  .catch((error) => {
+async function syncAdminRole(prisma: SeedClient) {
+  const existing = await prisma.role.findUnique({
+    where: { code: ADMIN_ROLE.code },
+    select: {
+      id: true,
+      isSystem: true,
+      scope: true,
+      organizationId: true,
+    },
+  });
+
+  if (
+    existing &&
+    (!existing.isSystem ||
+      existing.scope !== RoleScope.SYSTEM ||
+      existing.organizationId !== null)
+  ) {
+    throw new Error(
+      'The reserved ADMIN role code is already used by a non-system role; resolve the conflict before seeding.',
+    );
+  }
+
+  const role = await prisma.role.upsert({
+    where: { code: ADMIN_ROLE.code },
+    update: {
+      name: ADMIN_ROLE.name,
+      baseRole: ADMIN_ROLE.baseRole,
+      isSystem: true,
+      isActive: true,
+      scope: ADMIN_ROLE.scope,
+      organizationId: null,
+    },
+    create: {
+      ...ADMIN_ROLE,
+      isSystem: true,
+      isActive: true,
+      organizationId: null,
+    },
+  });
+
+  const permissions = await prisma.permission.findMany({
+    where: {
+      action: { in: FOUNDATION_PERMISSIONS.map(([action]) => action) },
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  await prisma.rolePermission.createMany({
+    data: permissions.map((permission) => ({
+      roleId: role.id,
+      permissionId: permission.id,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+export async function runFoundationSeed(prisma: PrismaClient) {
+  await prisma.$transaction(async (tx) => {
+    await syncPermissions(tx);
+    await syncAdminRole(tx);
+  });
+}
+
+async function main() {
+  const prisma = new PrismaClient();
+  try {
+    await runFoundationSeed(prisma);
+    console.log('Foundation system metadata synchronized.');
+    console.log(
+      'Tenant, user, membership, and Platform Admin provisioning remain explicit operator actions.',
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (require.main === module) {
+  void main().catch((error) => {
     console.error(error);
     process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+  });
+}
