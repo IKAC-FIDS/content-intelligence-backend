@@ -200,21 +200,6 @@ describe("fix 000090 Tenant-scoped SSO Providers", () => {
     expect(saml).toContain("roleId: mappedRole.id");
   });
 
-  it("contains an additive migration with no Provider update, delete, or guessed default", () => {
-    const sql = readFileSync(
-      join(
-        process.cwd(),
-        "prisma/migrations/20260812100000_tenant_scoped_sso_providers/migration.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toContain('ADD COLUMN "organizationId" TEXT');
-    expect(sql).toContain("sso_provider_routes_kind_value_key");
-    expect(sql).not.toMatch(/UPDATE\s+"sso_providers"/i);
-    expect(sql).not.toMatch(/DELETE\s+FROM/i);
-    expect(sql).not.toContain("DEFAULT '00000000");
-  });
-
   it("removes encryption-key diagnostics from runtime logging", () => {
     const source = readFileSync(
       join(process.cwd(), "src/auth/sso/sso-secret.service.ts"),

@@ -560,8 +560,6 @@
       "QuotaMetric": {
         "enum": [
           "ACTIVE_USERS",
-          "COMPANIES",
-          "OPPORTUNITIES",
           "FILES",
           "STORAGE_BYTES",
           "API_CALLS",

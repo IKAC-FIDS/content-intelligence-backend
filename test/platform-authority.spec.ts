@@ -1,7 +1,5 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { PlatformRole } from '@prisma/client';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { AuthService } from '../src/auth/auth.service';
 import { AuditLogService } from '../src/audit-log/audit-log.service';
 import { PlatformOrganizationsController } from '../src/organizations/platform-organizations.controller';
@@ -20,17 +18,6 @@ const executionContext = (request: Record<string, unknown>) =>
 
 describe('fix 000088 Platform authority', () => {
   afterEach(() => jest.restoreAllMocks());
-
-  it('uses an additive empty-safe migration with no automatic grants', () => {
-    const sql = readFileSync(
-      join(process.cwd(), 'prisma/migrations/20260811120000_add_platform_authority/migration.sql'),
-      'utf8',
-    );
-    expect(sql).toContain('CREATE TABLE "platform_authorities"');
-    expect(sql).toContain('UNIQUE INDEX "platform_authorities_userId_key"');
-    expect(sql).not.toMatch(/INSERT\s+INTO\s+"platform_authorities"/i);
-    expect(sql).not.toMatch(/UPDATE\s+"users"/i);
-  });
 
   it('denies Tenant ADMIN and forged request flags without persisted authority', async () => {
     const prisma = { platformAuthority: { findUnique: jest.fn().mockResolvedValue(null) } };

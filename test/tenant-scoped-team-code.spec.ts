@@ -4,10 +4,13 @@ import { join } from 'node:path';
 describe('fix 000086 Tenant-scoped Team code migration', () => {
   const root = join(__dirname, '..');
 
-  it('replaces global Team code uniqueness without assigning a default Tenant', () => {
+  it('enforces Tenant-qualified Team codes in the clean baseline', () => {
     const schema = readFileSync(join(root, 'prisma/schema.prisma'), 'utf8');
     const migration = readFileSync(
-      join(root, 'prisma/migrations/20260810143000_tenant_scoped_team_code/migration.sql'),
+      join(
+        root,
+        'prisma/migrations/20260926000000_initial_content_intelligence_foundation/migration.sql',
+      ),
       'utf8',
     );
 
@@ -16,9 +19,9 @@ describe('fix 000086 Tenant-scoped Team code migration', () => {
     expect(team).toContain('organizationId String');
     expect(team).not.toContain('code        String  @unique');
     expect(team).not.toContain('organizationId String       @default');
-    expect(migration).toContain('DROP INDEX "teams_code_key"');
     expect(migration).toContain('"teams_organizationId_code_key"');
-    expect(migration).not.toMatch(/UPDATE\s+"teams"/i);
+    expect(migration).not.toContain('"teams_code_key"');
+    expect(migration).not.toMatch(/^(INSERT|UPDATE|DELETE)\b/im);
   });
 
   it('uses Tenant-qualified runtime selectors without requiring a seeded Team', () => {

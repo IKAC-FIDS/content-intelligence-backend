@@ -30,7 +30,7 @@ describe('PlatformQuotaService fix 000093', () => {
     } as any);
     const result: any = await service.setPlanQuota(
       'plan-a',
-      QuotaMetric.COMPANIES,
+      QuotaMetric.ACTIVE_USERS,
       {
         enabled: true,
         isUnlimited: false,
@@ -66,7 +66,7 @@ describe('PlatformQuotaService fix 000093', () => {
     } as any);
     await service.setOverride(
       'org-a',
-      QuotaMetric.COMPANIES,
+      QuotaMetric.ACTIVE_USERS,
       { hardLimit: '5', reason: 'contract' },
       platform,
     );
@@ -87,7 +87,7 @@ describe('PlatformQuotaService fix 000093', () => {
     await expect(
       service.setPlanQuota(
         'p',
-        QuotaMetric.COMPANIES,
+        QuotaMetric.ACTIVE_USERS,
         {
           enabled: true,
           isUnlimited: false,
@@ -101,7 +101,7 @@ describe('PlatformQuotaService fix 000093', () => {
     await expect(
       service.setPlanQuota(
         'p',
-        QuotaMetric.COMPANIES,
+        QuotaMetric.ACTIVE_USERS,
         {
           enabled: true,
           isUnlimited: true,

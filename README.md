@@ -44,9 +44,9 @@ npm run openapi:check
 npm run safety:scan-migrations
 ```
 
-## Database policy for Stage 5.8
+## Database baseline
 
-Stage 5.8 removes retired CRM models from the Prisma schema and generated client without adding a destructive migration. Existing CRM tables and data remain in deployed databases. Do not run `prisma db push`; a later, separately reviewed archival migration must inventory and back up production data before physically dropping legacy tables or columns.
+New installations apply the single clean Content Intelligence Foundation baseline and then run the Foundation Seed. Existing deployments that recorded the retired migration history must follow the reviewed reconciliation procedure before starting an image containing the new baseline. See [docs/database-baseline.md](docs/database-baseline.md). Never run `prisma migrate reset` or force-reset a persistent database.
 
 ## Server deployment
 

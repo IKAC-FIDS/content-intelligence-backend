@@ -46,3 +46,9 @@ curl --fail http://127.0.0.1:3001/api/ready
 The image runs `prisma migrate deploy` with `MIGRATION_DATABASE_URL` before
 starting Node with `DATABASE_URL`. Never use `docker compose down -v`, remove the
 shared network, or recreate the existing PostgreSQL and MinIO containers.
+
+An existing Content Intelligence deployment that recorded the retired
+CRM-derived migration history must complete the backup-gated, one-time baseline
+reconciliation in [database-baseline.md](database-baseline.md) before starting
+an image containing the clean baseline. The baseline SQL is only for an empty
+database and must not be executed against the existing deployment.

@@ -64,7 +64,7 @@ function setup(
 describe('QuotaResolverService fix 000093', () => {
   it('resolves a Plan baseline and monthly UTC boundary', async () =>
     expect(
-      await setup().service.resolve('org-a', QuotaMetric.COMPANIES, now),
+      await setup().service.resolve('org-a', QuotaMetric.ACTIVE_USERS, now),
     ).toMatchObject({
       state: 'ENFORCED',
       softLimit: 80n,
@@ -82,7 +82,7 @@ describe('QuotaResolverService fix 000093', () => {
           hardLimit: 10n,
           resetPeriod: QuotaResetPeriod.DAILY,
         },
-      }).service.resolve('org-a', QuotaMetric.COMPANIES, now),
+      }).service.resolve('org-a', QuotaMetric.ACTIVE_USERS, now),
     ).toMatchObject({
       hardLimit: 10n,
       resetPeriod: QuotaResetPeriod.DAILY,
@@ -120,7 +120,7 @@ describe('QuotaResolverService fix 000093', () => {
     expect(
       await setup({ subscription: null, history: 0 }).service.resolve(
         'org-a',
-        QuotaMetric.COMPANIES,
+        QuotaMetric.ACTIVE_USERS,
         now,
       ),
     ).toMatchObject({
@@ -133,7 +133,7 @@ describe('QuotaResolverService fix 000093', () => {
       (
         await setup({ quota: null }).service.resolve(
           'org-a',
-          QuotaMetric.COMPANIES,
+          QuotaMetric.ACTIVE_USERS,
           now,
         )
       ).state,
@@ -147,7 +147,7 @@ describe('QuotaResolverService fix 000093', () => {
       (
         await setup({ status }).service.resolve(
           'org-a',
-          QuotaMetric.COMPANIES,
+          QuotaMetric.ACTIVE_USERS,
           now,
         )
       ).state,
@@ -180,7 +180,7 @@ describe('QuotaResolverService fix 000093', () => {
         (
           await setup({ subscription: current }).service.resolve(
             'org-a',
-            QuotaMetric.COMPANIES,
+            QuotaMetric.ACTIVE_USERS,
             now,
           )
         ).state,
@@ -197,7 +197,7 @@ describe('QuotaResolverService fix 000093', () => {
           hardLimit: 10n,
           resetPeriod: QuotaResetPeriod.SUBSCRIPTION_TERM,
         },
-      }).service.resolve('org-a', QuotaMetric.COMPANIES, now),
+      }).service.resolve('org-a', QuotaMetric.ACTIVE_USERS, now),
     ).toMatchObject({
       periodStart: new Date('2026-08-01'),
       periodEnd: new Date('2026-09-01'),

@@ -29,7 +29,7 @@ describeDb('Quota PostgreSQL concurrency and idempotency fix 000093', () => {
             enabled: true,
             isUnlimited: false,
             hardLimit:
-              metric === QuotaMetric.COMPANIES
+              metric === QuotaMetric.ACTIVE_USERS
                 ? 1n
                 : metric === QuotaMetric.STORAGE_BYTES
                   ? 10n
@@ -65,8 +65,8 @@ describeDb('Quota PostgreSQL concurrency and idempotency fix 000093', () => {
   afterAll(() => prisma.$disconnect());
   it('serializes two creates at hardLimit-1 so only one reservation passes', async () => {
     const results = await Promise.allSettled([
-      service.reserve(organizationId, QuotaMetric.COMPANIES, 1n, 'company-a'),
-      service.reserve(organizationId, QuotaMetric.COMPANIES, 1n, 'company-b'),
+      service.reserve(organizationId, QuotaMetric.ACTIVE_USERS, 1n, 'company-a'),
+      service.reserve(organizationId, QuotaMetric.ACTIVE_USERS, 1n, 'company-b'),
     ]);
     expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((row) => row.status === 'rejected')).toHaveLength(1);
@@ -97,7 +97,7 @@ describeDb('Quota PostgreSQL concurrency and idempotency fix 000093', () => {
     await expect(
       service.reserve(
         otherOrganizationId,
-        QuotaMetric.COMPANIES,
+        QuotaMetric.ACTIVE_USERS,
         1n,
         'company-a',
       ),

@@ -333,24 +333,6 @@ describe("fix 000089-B tenant settings, branding and domains", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it("migration is additive and never changes Organization IDs or infers authority", () => {
-    const sql = readFileSync(
-      join(
-        process.cwd(),
-        "prisma/migrations/20260812160000_tenant_settings_branding_domains/migration.sql",
-      ),
-      "utf8",
-    );
-    expect(sql).toContain('CREATE TABLE "organization_settings"');
-    expect(sql).toContain(
-      'CREATE UNIQUE INDEX "organization_domains_hostname_key"',
-    );
-    expect(sql).not.toMatch(
-      /UPDATE\s+"organizations"|INSERT\s+INTO\s+"platform_authorities"|INSERT\s+INTO\s+"organization_memberships"/i,
-    );
-    expect(sql).not.toMatch(/DROP\s+(TABLE|COLUMN|SCHEMA|DATABASE)|TRUNCATE/i);
-  });
-
   it("enforces password/passkey policy and never trusts organizationId input", () => {
     const auth = readFileSync(
       join(process.cwd(), "src/auth/auth.service.ts"),
