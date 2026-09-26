@@ -26,22 +26,6 @@ export class UsageReconciliationService {
             },
           }),
         );
-      case QuotaMetric.COMPANIES:
-        return BigInt(
-          await this.prisma.company.count({
-            where: { organizationId, archivedAt: null },
-          }),
-        );
-      case QuotaMetric.OPPORTUNITIES:
-        return BigInt(
-          await this.prisma.opportunity.count({
-            where: {
-              organizationId,
-              archivedAt: null,
-              company: { archivedAt: null },
-            },
-          }),
-        );
       case QuotaMetric.FILES:
         return BigInt(
           await this.prisma.fileAttachment.count({

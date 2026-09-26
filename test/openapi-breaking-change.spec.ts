@@ -17,8 +17,8 @@ function removedOperations(base: any, candidate: any) {
 describe('breaking-change policy smoke', () => {
   it('detects a removed operation', () => {
     const candidate = structuredClone(contract);
-    delete candidate.paths['/api/companies'].get;
-    expect(removedOperations(contract, candidate)).toContain('GET /api/companies');
+    delete candidate.paths['/api/users'].get;
+    expect(removedOperations(contract, candidate)).toContain('GET /api/users');
   });
 
   it('allows an additive operation', () => {

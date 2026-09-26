@@ -454,20 +454,6 @@ export class QuotaService {
           where: { organizationId, status: 'ACTIVE', user: { isActive: true } },
         }),
       );
-    if (metric === QuotaMetric.COMPANIES)
-      return BigInt(
-        await tx.company.count({ where: { organizationId, archivedAt: null } }),
-      );
-    if (metric === QuotaMetric.OPPORTUNITIES)
-      return BigInt(
-        await tx.opportunity.count({
-          where: {
-            organizationId,
-            archivedAt: null,
-            company: { archivedAt: null },
-          },
-        }),
-      );
     if (metric === QuotaMetric.FILES)
       return BigInt(
         await tx.fileAttachment.count({

@@ -35,24 +35,14 @@ const TAGS: Array<[RegExp, string]> = [
   [/^\/api\/admin/, 'Platform Admin'],
   [/^\/api\/quota/, 'Quotas'],
   [/^\/api\/organizations/, 'Organizations'],
-  [/^\/api\/companies/, 'Companies'],
-  [/^\/api\/people/, 'People'],
-  [/^\/api\/opportunities/, 'Opportunities'],
-  [/^\/api\/tasks/, 'Tasks'],
-  [/^\/api\/meetings/, 'Meetings'],
-  [/^\/api\/notifications/, 'Notifications'],
-  [/^\/api\/reports/, 'Reports'],
-  [/^\/api\/activities/, 'Activities'],
   [/^\/api\/users/, 'Users'],
-  [/^\/api\/products|^\/api\/product-catalog/, 'Products'],
-  [/^\/api\/attachments/, 'Attachments'],
   [/^\/api\/health/, 'Health'],
 ];
 
 export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const config = new DocumentBuilder()
     .setTitle(OPENAPI_TITLE)
-    .setDescription('Canonical frontend/backend contract for IAM CRM. Tenant organization is resolved from trusted authentication context.')
+    .setDescription('Canonical contract for the Content Intelligence foundation. Tenant organization is resolved from trusted authentication context.')
     .setVersion(OPENAPI_VERSION)
     .addServer('/', 'Relative API server; no Production hostname is embedded.')
     .addBearerAuth(

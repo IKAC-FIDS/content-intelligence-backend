@@ -12,14 +12,14 @@ describe('fix 000094 canonical OpenAPI contract', () => {
   const ops = operations(doc);
 
   it('documents every current HTTP operation with stable unique IDs', () => {
-    expect(ops).toHaveLength(465);
+    expect(ops).toHaveLength(133);
     const ids = ops.map(({ operation }) => operation.operationId);
     expect(ids.every(Boolean)).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('keeps critical routes and does not introduce /v1', () => {
-    for (const path of ['/api/health', '/api/auth/login', '/api/companies', '/api/opportunities', '/api/quota/current', '/api/admin/plans/{planId}/quotas']) expect(doc.paths[path]).toBeDefined();
+    for (const path of ['/api/health', '/api/auth/login', '/api/users', '/api/organization/branding', '/api/quota/current', '/api/admin/plans/{planId}/quotas']) expect(doc.paths[path]).toBeDefined();
     expect(Object.keys(doc.paths).some((path) => path.startsWith('/v1') || path.startsWith('/api/v1'))).toBe(false);
   });
 
@@ -53,14 +53,14 @@ describe('fix 000094 canonical OpenAPI contract', () => {
     expect(doc.paths['/api/auth/login'].post.security).toEqual([]);
     expect(doc.paths['/api/auth/sso/providers'].get.security).toEqual([]);
     expect(doc.paths['/api/auth/refresh'].post.security).toEqual([{ refreshCookie: [] }]);
-    expect(doc.paths['/api/companies'].get.security).toEqual([{ bearerAuth: [] }]);
+    expect(doc.paths['/api/users'].get.security).toEqual([{ bearerAuth: [] }]);
     expect(doc.paths['/api/admin/plans/{planId}/quotas'].get.description).toContain('PlatformAdmin-only');
   });
 
-  it('documents multipart upload without storage internals', () => {
-    const body = doc.paths['/api/attachments'].post.requestBody;
-    expect(body.content['multipart/form-data'].schema.properties.file.format).toBe('binary');
-    expect(JSON.stringify(body)).not.toMatch(/bucket|objectKey|secret/i);
+  it('does not publish retired CRM operations', () => {
+    for (const path of ['/api/companies', '/api/opportunities', '/api/tasks', '/api/attachments']) {
+      expect(doc.paths[path]).toBeUndefined();
+    }
   });
 
   it('does not reference credential-bearing schemas from responses', () => {

@@ -2,8 +2,6 @@ import { QuotaMetric } from '@prisma/client';
 
 export const INVENTORY_METRICS = new Set<QuotaMetric>([
   QuotaMetric.ACTIVE_USERS,
-  QuotaMetric.COMPANIES,
-  QuotaMetric.OPPORTUNITIES,
   QuotaMetric.FILES,
   QuotaMetric.STORAGE_BYTES,
 ]);

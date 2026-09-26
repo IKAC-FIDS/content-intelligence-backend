@@ -42,7 +42,7 @@ describe('HealthService', () => {
     const result = service.getHealth();
 
     expect(result.status).toBe('ok');
-    expect(result.service).toBe('iam-crm-backend');
+    expect(result.service).toBe('content-intelligence-backend');
     expect(result.environment).toBe('test');
     expect(typeof result.uptimeSeconds).toBe('number');
     expect(result.startedAt).toEqual(expect.any(String));
@@ -62,7 +62,7 @@ describe('HealthService', () => {
 
     const result = service.getVersion();
 
-    expect(result.service).toBe('iam-crm-backend');
+    expect(result.service).toBe('content-intelligence-backend');
     expect(result.version).toBe('0.1.0-test');
     expect(result.commit).toBe('test-commit');
     expect(result.buildTime).toBe('2026-07-10T00:00:00.000Z');

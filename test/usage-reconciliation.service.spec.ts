@@ -9,8 +9,6 @@ describe('UsageReconciliationService fix 000093', () => {
     };
     const prisma: any = {
       organizationMembership: { count: jest.fn().mockResolvedValue(2) },
-      company: { count: jest.fn().mockResolvedValue(3) },
-      opportunity: { count: jest.fn().mockResolvedValue(4) },
       fileAttachment: {
         count: jest.fn().mockResolvedValue(5),
         aggregate: jest.fn().mockResolvedValue({ _sum: { sizeBytes: 100 } }),
@@ -46,18 +44,8 @@ describe('UsageReconciliationService fix 000093', () => {
       2n,
     );
     expect(
-      await service.authoritative('org-a', QuotaMetric.OPPORTUNITIES),
-    ).toBe(4n);
-    expect(
       await service.authoritative('org-a', QuotaMetric.STORAGE_BYTES),
     ).toBe(100n);
-    expect(prisma.opportunity.count).toHaveBeenCalledWith({
-      where: {
-        organizationId: 'org-a',
-        archivedAt: null,
-        company: { archivedAt: null },
-      },
-    });
     expect(prisma.fileAttachment.aggregate).toHaveBeenCalledWith({
       where: { organizationId: 'org-a', deletedAt: null },
       _sum: { sizeBytes: true },
@@ -66,13 +54,13 @@ describe('UsageReconciliationService fix 000093', () => {
   it('dry-run reports drift without mutation', async () => {
     const { service, tx } = setup();
     const result = await service.reconcile('org-a', false);
-    expect(result.results).toHaveLength(5);
+    expect(result.results).toHaveLength(3);
     expect(tx.usageCounter.upsert).not.toHaveBeenCalled();
   });
   it('apply repairs only the exact tenant under lock and audits', async () => {
     const { service, tx } = setup();
     await service.reconcile('tenant-a', true);
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(5);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
     expect(tx.usageCounter.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -82,6 +70,6 @@ describe('UsageReconciliationService fix 000093', () => {
         },
       }),
     );
-    expect(tx.auditLog.create).toHaveBeenCalledTimes(5);
+    expect(tx.auditLog.create).toHaveBeenCalledTimes(3);
   });
 });

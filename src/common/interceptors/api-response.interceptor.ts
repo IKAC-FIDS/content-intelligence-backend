@@ -11,8 +11,6 @@ import {
   ApiSuccessResponse,
   PaginatedPayload,
 } from "../http/api-response.types";
-import { redactFinancialResponse } from "../financial/financial-visibility";
-import type { CurrentUserPayload } from "../decorators/current-user.decorator";
 
 type AlreadyStandardResponse = {
   success: boolean;
@@ -60,20 +58,14 @@ export class ApiResponseInterceptor implements NestInterceptor<
 > {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const response = context.switchToHttp().getResponse<Response>();
-    const request = context.switchToHttp().getRequest<{
-      user?: CurrentUserPayload;
-    }>();
-
     return next.handle().pipe(
       map((payload: unknown): unknown => {
         if (payload instanceof StreamableFile) {
           return payload;
         }
 
-        const visiblePayload = redactFinancialResponse(payload, request.user);
-
-        if (isAlreadyStandardResponse(visiblePayload)) {
-          return visiblePayload;
+        if (isAlreadyStandardResponse(payload)) {
+          return payload;
         }
 
         const base = {
@@ -82,11 +74,11 @@ export class ApiResponseInterceptor implements NestInterceptor<
           timestamp: new Date().toISOString(),
         };
 
-        if (isPaginatedPayload(visiblePayload)) {
+        if (isPaginatedPayload(payload)) {
           const result: ApiSuccessResponse = {
             ...base,
-            data: visiblePayload.data,
-            meta: visiblePayload.meta,
+            data: payload.data,
+            meta: payload.meta,
           };
 
           return result;
@@ -94,7 +86,7 @@ export class ApiResponseInterceptor implements NestInterceptor<
 
         const result: ApiSuccessResponse = {
           ...base,
-          data: visiblePayload ?? null,
+          data: payload ?? null,
         };
 
         return result;

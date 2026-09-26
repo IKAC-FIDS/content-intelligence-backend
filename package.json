@@ -1,7 +1,7 @@
 {
-  "name": "iam-crm-backend",
+  "name": "content-intelligence-backend",
   "version": "0.1.0",
-  "description": "بک‌اند سیستم مدیریت فرآیند فروش IAM - از تحقیق شرکت تا پایپ‌لاین فروش",
+  "description": "Multi-tenant foundation for the Content Intelligence platform",
   "private": true,
   "scripts": {
     "prebuild": "prisma generate",
@@ -26,10 +26,6 @@
     "membership:backfill:dry-run": "node dist/src/organization-memberships/membership-maintenance.js backfill --dry-run",
     "membership:backfill": "node dist/src/organization-memberships/membership-maintenance.js backfill",
     "membership:validate": "node dist/src/organization-memberships/membership-maintenance.js validate",
-    "tenant-constraints:preflight": "node dist/src/tenant-constraints/tenant-constraints-maintenance.js preflight",
-    "tenant-constraints:backfill:dry-run": "node dist/src/tenant-constraints/tenant-constraints-maintenance.js backfill --dry-run",
-    "tenant-constraints:backfill": "node dist/src/tenant-constraints/tenant-constraints-maintenance.js backfill",
-    "tenant-constraints:validate": "node dist/src/tenant-constraints/tenant-constraints-maintenance.js validate",
     "rls:verify-pool": "node tools/rls/verify-pool.cjs",
     "platform-admin:preflight": "node dist/src/platform-authority/platform-authority-maintenance.js preflight",
     "platform-admin:grant": "node dist/src/platform-authority/platform-authority-maintenance.js grant",
