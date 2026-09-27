@@ -134,6 +134,11 @@ enum OrganizationMembershipStatus {
   SUSPENDED
 }
 
+enum WorkspaceStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 enum OrganizationCalendarSystem {
   GREGORIAN
   PERSIAN
@@ -286,10 +291,30 @@ model Organization {
   quotaThresholds     QuotaThresholdEvent[]
   usageReservations   UsageReservation[]
   usageEvents         UsageEvent[]
+  workspaces          Workspace[]
 
   @@index([status])
   @@index([createdAt])
   @@map("organizations")
+}
+
+model Workspace {
+  id                  String          @id @default(uuid())
+  organizationId      String
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name                String
+  code                String
+  status              WorkspaceStatus @default(ACTIVE)
+  settings            Json            @default("{}")
+  defaultLanguageCode String?
+  timezone            String          @default("Asia/Tehran")
+  archivedAt          DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@map("workspaces")
 }
 
 model OrganizationSettings {

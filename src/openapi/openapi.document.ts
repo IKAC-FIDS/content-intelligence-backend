@@ -35,6 +35,7 @@ const TAGS: Array<[RegExp, string]> = [
   [/^\/api\/admin/, 'Platform Admin'],
   [/^\/api\/quota/, 'Quotas'],
   [/^\/api\/organizations/, 'Organizations'],
+  [/^\/api\/workspaces/, 'Workspaces'],
   [/^\/api\/users/, 'Users'],
   [/^\/api\/health/, 'Health'],
 ];

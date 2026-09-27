@@ -103,8 +103,11 @@ export class AuditLogService {
     });
   }
 
-  recordTenantEvent(input: Omit<RecordAuditInput, "scope">) {
-    return this.record({ ...input, scope: AuditScope.TENANT });
+  recordTenantEvent(
+    input: Omit<RecordAuditInput, "scope">,
+    db: Pick<Prisma.TransactionClient, "auditLog"> = this.prisma,
+  ) {
+    return this.record({ ...input, scope: AuditScope.TENANT }, db);
   }
 
   recordPlatformEvent(

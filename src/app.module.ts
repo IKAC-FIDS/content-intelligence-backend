@@ -17,6 +17,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QuotaModule } from './quota/quota.module';
 import { UsersModule } from './users/users.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { UsersModule } from './users/users.module';
     AuditLogModule,
     EntitlementsModule,
     QuotaModule,
+    WorkspacesModule,
   ],
 
   providers: [

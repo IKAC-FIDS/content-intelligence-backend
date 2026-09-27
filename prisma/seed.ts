@@ -25,6 +25,10 @@ export const FOUNDATION_PERMISSIONS = [
   ['team:manage', 'Manage teams'],
   ['sso-provider:view', 'View SSO providers'],
   ['sso-provider:manage', 'Manage SSO providers'],
+  ['workspace:view', 'View tenant workspaces'],
+  ['workspace:create', 'Create tenant workspaces'],
+  ['workspace:update', 'Update tenant workspaces'],
+  ['workspace:archive', 'Archive tenant workspaces'],
 ] as const;
 
 const ADMIN_ROLE = {
