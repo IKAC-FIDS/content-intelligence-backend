@@ -19,6 +19,7 @@ import { QuotaModule } from './quota/quota.module';
 import { UsersModule } from './users/users.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { LanguagesModule } from './languages/languages.module';
+import { IntelligenceDomainsModule } from './intelligence-domains/intelligence-domains.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { LanguagesModule } from './languages/languages.module';
     QuotaModule,
     WorkspacesModule,
     LanguagesModule,
+    IntelligenceDomainsModule,
   ],
 
   providers: [

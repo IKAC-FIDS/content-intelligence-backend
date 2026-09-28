@@ -27,6 +27,7 @@ const PLATFORM_PATHS = [
   /^\/api\/admin\/plans(?:\/|$)/,
   /^\/api\/admin\/subscriptions(?:\/|$)/,
   /^\/api\/admin\/languages(?:\/|$)/,
+  /^\/api\/admin\/intelligence-domains(?:\/|$)/,
 ];
 
 const TAGS: Array<[RegExp, string]> = [
@@ -38,6 +39,7 @@ const TAGS: Array<[RegExp, string]> = [
   [/^\/api\/organizations/, 'Organizations'],
   [/^\/api\/workspaces/, 'Workspaces'],
   [/^\/api\/languages/, 'Languages'],
+  [/^\/api\/intelligence-domains/, 'Intelligence Domains'],
   [/^\/api\/users/, 'Users'],
   [/^\/api\/health/, 'Health'],
 ];

@@ -18,6 +18,7 @@ const workspaceSelect = {
   defaultLanguage: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } },
   inputLanguageLinks: { select: { language: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } } }, orderBy: { language: { name: 'asc' as const } } },
   outputLanguageLinks: { select: { language: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } } }, orderBy: { language: { name: 'asc' as const } } },
+  domainLinks: { select: { domain: { select: { id: true, code: true, name: true, description: true, isActive: true } } }, orderBy: { domain: { name: 'asc' as const } } },
   timezone: true,
   archivedAt: true,
   createdAt: true,
@@ -36,6 +37,7 @@ export class WorkspacesService {
       try {
         await this.validateLanguageSelection(tx, dto.inputLanguageIds ?? [], [], 'input');
         await this.validateLanguageSelection(tx, dto.outputLanguageIds ?? [], [], 'output');
+        await this.validateDomainSelection(tx, dto.domainIds ?? [], []);
         this.validateDefault(dto.defaultLanguageId, dto.outputLanguageIds ?? []);
         const workspace = await tx.workspace.create({
           data: {
@@ -45,6 +47,7 @@ export class WorkspacesService {
             defaultLanguageId: dto.defaultLanguageId,
             inputLanguageLinks: { create: (dto.inputLanguageIds ?? []).map((languageId) => ({ languageId })) },
             outputLanguageLinks: { create: (dto.outputLanguageIds ?? []).map((languageId) => ({ languageId })) },
+            domainLinks: { create: (dto.domainIds ?? []).map((domainId) => ({ domainId })) },
             timezone: this.normalizeTimezone(dto.timezone ?? 'Asia/Tehran'),
           },
           select: workspaceSelect,
@@ -105,11 +108,13 @@ export class WorkspacesService {
       if (dto.timezone !== undefined) data.timezone = this.normalizeTimezone(dto.timezone);
       const currentInput = current.inputLanguageLinks.map((link) => link.language.id);
       const currentOutput = current.outputLanguageLinks.map((link) => link.language.id);
+      const currentDomains = current.domainLinks.map((link) => link.domain.id);
       const nextInput = dto.inputLanguageIds ?? currentInput;
       const nextOutput = dto.outputLanguageIds ?? currentOutput;
       const nextDefault = dto.defaultLanguageId !== undefined ? dto.defaultLanguageId : current.defaultLanguageId;
       if (dto.inputLanguageIds !== undefined) await this.validateLanguageSelection(tx, nextInput, currentInput, 'input');
       if (dto.outputLanguageIds !== undefined) await this.validateLanguageSelection(tx, nextOutput, currentOutput, 'output');
+      if (dto.domainIds !== undefined) await this.validateDomainSelection(tx, dto.domainIds, currentDomains);
       this.validateDefault(nextDefault, nextOutput);
       if (dto.defaultLanguageId !== undefined) data.defaultLanguageId = dto.defaultLanguageId;
       await tx.workspace.updateMany({
@@ -123,6 +128,10 @@ export class WorkspacesService {
       if (dto.outputLanguageIds !== undefined) {
         await tx.workspaceOutputLanguage.deleteMany({ where: { workspaceId: id } });
         await tx.workspaceOutputLanguage.createMany({ data: nextOutput.map((languageId) => ({ workspaceId: id, languageId })) });
+      }
+      if (dto.domainIds !== undefined) {
+        await tx.workspaceDomain.deleteMany({ where: { workspaceId: id } });
+        await tx.workspaceDomain.createMany({ data: dto.domainIds.map((domainId) => ({ workspaceId: id, domainId })) });
       }
       const updated = await this.getScoped(tx, id, tenant);
       await this.recordAudit(tx, tenant, 'workspace.updated', id, current, updated);
@@ -168,6 +177,7 @@ export class WorkspacesService {
       defaultLanguageId: value.defaultLanguageId,
       inputLanguageIds: value.inputLanguageLinks?.map((link: any) => link.language.id),
       outputLanguageIds: value.outputLanguageLinks?.map((link: any) => link.language.id),
+      domainIds: value.domainLinks?.map((link: any) => link.domain.id),
       timezone: value.timezone,
     });
     return this.audit.recordTenantEvent({
@@ -208,9 +218,19 @@ export class WorkspacesService {
     if (defaultLanguageId && !outputLanguageIds.includes(defaultLanguageId)) throw new BadRequestException('Default Language must belong to Workspace output languages');
   }
 
+  private async validateDomainSelection(tx: TenantTransactionClient, ids: string[], existingIds: string[]) {
+    const unique = [...new Set(ids)];
+    if (unique.length !== ids.length) throw new BadRequestException('Duplicate Intelligence Domain selection');
+    if (unique.length === 0) return;
+    const found = await tx.intelligenceDomain.findMany({ where: { id: { in: unique } }, select: { id: true, isActive: true } });
+    if (found.length !== unique.length) throw new BadRequestException('Intelligence Domain selection contains an unknown Domain');
+    const existing = new Set(existingIds);
+    if (found.some((domain) => !domain.isActive && !existing.has(domain.id))) throw new ConflictException('Inactive Intelligence Domain cannot be added to Workspace');
+  }
+
   private present(workspace: any) {
-    const { inputLanguageLinks, outputLanguageLinks, ...rest } = workspace;
-    return { ...rest, inputLanguages: inputLanguageLinks.map((link: any) => link.language), outputLanguages: outputLanguageLinks.map((link: any) => link.language) };
+    const { inputLanguageLinks, outputLanguageLinks, domainLinks, ...rest } = workspace;
+    return { ...rest, inputLanguages: inputLanguageLinks.map((link: any) => link.language), outputLanguages: outputLanguageLinks.map((link: any) => link.language), domains: (domainLinks ?? []).map((link: any) => link.domain) };
   }
 
   private normalizeTimezone(value: string) {

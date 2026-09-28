@@ -10,6 +10,14 @@ export const RESPONSE_CONTRACT_SCHEMAS: Record<string, Schema> = {
       createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' },
     },
   },
+  IntelligenceDomain: {
+    type: 'object', required: ['id', 'code', 'name', 'description', 'isActive', 'createdAt', 'updatedAt'],
+    properties: {
+      id: { type: 'string', format: 'uuid' }, code: { type: 'string', maxLength: 80 }, name: { type: 'string', maxLength: 160 },
+      description: { type: 'string', maxLength: 1000, nullable: true }, isActive: { type: 'boolean' },
+      createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' },
+    },
+  },
   WorkspaceStatus: { type: 'string', enum: ['ACTIVE', 'ARCHIVED'] },
   Workspace: {
     type: 'object',
@@ -20,7 +28,7 @@ export const RESPONSE_CONTRACT_SCHEMAS: Record<string, Schema> = {
       'code',
       'status',
       'settings',
-      'defaultLanguageId', 'defaultLanguage', 'inputLanguages', 'outputLanguages',
+      'defaultLanguageId', 'defaultLanguage', 'inputLanguages', 'outputLanguages', 'domains',
       'timezone',
       'archivedAt',
       'createdAt',
@@ -37,6 +45,7 @@ export const RESPONSE_CONTRACT_SCHEMAS: Record<string, Schema> = {
       defaultLanguage: { type: 'object', allOf: [{ $ref: '#/components/schemas/Language' }], nullable: true },
       inputLanguages: { type: 'array', items: { $ref: '#/components/schemas/Language' } },
       outputLanguages: { type: 'array', items: { $ref: '#/components/schemas/Language' } },
+      domains: { type: 'array', items: { $ref: '#/components/schemas/IntelligenceDomain' } },
       timezone: { type: 'string', example: 'Asia/Tehran' },
       archivedAt: { type: 'string', format: 'date-time', nullable: true },
       createdAt: { type: 'string', format: 'date-time' },
@@ -64,4 +73,11 @@ export const TYPED_SUCCESS_PAYLOADS: Record<
   'PATCH /api/admin/languages/{id}': { schema: { $ref: '#/components/schemas/Language' } },
   'PATCH /api/admin/languages/{id}/activate': { schema: { $ref: '#/components/schemas/Language' } },
   'PATCH /api/admin/languages/{id}/deactivate': { schema: { $ref: '#/components/schemas/Language' } },
+  'GET /api/intelligence-domains': { schema: { $ref: '#/components/schemas/IntelligenceDomain' }, paginated: true },
+  'GET /api/admin/intelligence-domains': { schema: { $ref: '#/components/schemas/IntelligenceDomain' }, paginated: true },
+  'GET /api/admin/intelligence-domains/{id}': { schema: { $ref: '#/components/schemas/IntelligenceDomain' } },
+  'POST /api/admin/intelligence-domains': { schema: { $ref: '#/components/schemas/IntelligenceDomain' } },
+  'PATCH /api/admin/intelligence-domains/{id}': { schema: { $ref: '#/components/schemas/IntelligenceDomain' } },
+  'PATCH /api/admin/intelligence-domains/{id}/activate': { schema: { $ref: '#/components/schemas/IntelligenceDomain' } },
+  'PATCH /api/admin/intelligence-domains/{id}/deactivate': { schema: { $ref: '#/components/schemas/IntelligenceDomain' } },
 };

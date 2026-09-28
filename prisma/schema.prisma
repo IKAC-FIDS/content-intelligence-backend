@@ -317,6 +317,7 @@ model Workspace {
   legacyDefaultLanguageCode String?                   @map("defaultLanguageCode")
   inputLanguageLinks        WorkspaceInputLanguage[]
   outputLanguageLinks       WorkspaceOutputLanguage[]
+  domainLinks               WorkspaceDomain[]
   timezone                  String                    @default("Asia/Tehran")
   archivedAt                DateTime?
   createdAt                 DateTime                  @default(now())
@@ -368,6 +369,33 @@ model WorkspaceOutputLanguage {
   @@id([workspaceId, languageId])
   @@index([languageId])
   @@map("workspace_output_languages")
+}
+
+model IntelligenceDomain {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceLinks WorkspaceDomain[]
+
+  @@index([isActive, name])
+  @@map("intelligence_domains")
+}
+
+model WorkspaceDomain {
+  workspaceId String
+  domainId    String
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  domain      IntelligenceDomain @relation(fields: [domainId], references: [id], onDelete: Restrict)
+  createdAt   DateTime           @default(now())
+
+  @@id([workspaceId, domainId])
+  @@index([domainId])
+  @@map("workspace_domains")
 }
 
 model OrganizationSettings {

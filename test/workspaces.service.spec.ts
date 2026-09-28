@@ -14,6 +14,7 @@ type WorkspaceRow = {
   defaultLanguage: any;
   inputLanguageLinks: any[];
   outputLanguageLinks: any[];
+  domainLinks: any[];
   timezone: string;
   archivedAt: Date | null;
   createdAt: Date;
@@ -57,6 +58,7 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
     defaultLanguage: row.defaultLanguage ?? null,
     inputLanguageLinks: row.inputLanguageLinks ?? [],
     outputLanguageLinks: row.outputLanguageLinks ?? [],
+    domainLinks: row.domainLinks ?? [],
     timezone: row.timezone ?? 'Asia/Tehran',
     archivedAt: row.archivedAt ?? null,
     createdAt: row.createdAt ?? new Date('2026-01-01T00:00:00Z'),
@@ -84,6 +86,7 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
         defaultLanguage: null,
         inputLanguageLinks: (data.inputLanguageLinks?.create ?? []).map(({ languageId }) => ({ language: { id: languageId, isActive: true } })),
         outputLanguageLinks: (data.outputLanguageLinks?.create ?? []).map(({ languageId }) => ({ language: { id: languageId, isActive: true } })),
+        domainLinks: (data.domainLinks?.create ?? []).map(({ domainId }) => ({ domain: { id: domainId, isActive: true } })),
         timezone: data.timezone,
         archivedAt: null,
         createdAt: now,
@@ -107,16 +110,18 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
     }),
   };
   const language = { findMany: jest.fn(async ({ where }: any) => (where.id.in ?? []).map((id: string) => ({ id, isActive: true }))) };
+  const intelligenceDomain = { findMany: jest.fn(async ({ where }: any) => (where.id.in ?? []).map((id: string) => ({ id, isActive: true }))) };
   const workspaceInputLanguage = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
   const workspaceOutputLanguage = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
-  const tx: any = { workspace, auditLog, language, workspaceInputLanguage, workspaceOutputLanguage };
+  const workspaceDomain = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
+  const tx: any = { workspace, auditLog, language, intelligenceDomain, workspaceInputLanguage, workspaceOutputLanguage, workspaceDomain };
   const prisma: any = {
     withTenantTransaction: jest.fn(async (_tenant, callback) => callback(tx)),
   };
   const audit: any = {
     recordTenantEvent: jest.fn(async (input, db) => db.auditLog.create({ data: input })),
   };
-  return { rows, workspace, language, workspaceInputLanguage, workspaceOutputLanguage, tx, prisma, audit, service: new WorkspacesService(prisma, audit) };
+  return { rows, workspace, language, intelligenceDomain, workspaceInputLanguage, workspaceOutputLanguage, workspaceDomain, tx, prisma, audit, service: new WorkspacesService(prisma, audit) };
 }
 
 describe('WorkspacesService', () => {
@@ -265,5 +270,29 @@ describe('WorkspacesService', () => {
     const inactive = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
     inactive.language.findMany.mockResolvedValueOnce([{ id: 'language-old', isActive: false }]);
     await expect(inactive.service.update('workspace-a', { inputLanguageIds: ['language-old'] }, tenant('org-a'))).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('atomically replaces zero, one, or multiple Intelligence Domains', async () => {
+    const { service, workspaceDomain } = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
+    await service.update('workspace-a', { domainIds: ['domain-technology', 'domain-finance'] }, tenant('org-a'));
+    expect(workspaceDomain.deleteMany).toHaveBeenCalledWith({ where: { workspaceId: 'workspace-a' } });
+    expect(workspaceDomain.createMany).toHaveBeenCalledWith({ data: [
+      { workspaceId: 'workspace-a', domainId: 'domain-technology' },
+      { workspaceId: 'workspace-a', domainId: 'domain-finance' },
+    ] });
+    await service.update('workspace-a', { domainIds: [] }, tenant('org-a'));
+    expect(workspaceDomain.createMany).toHaveBeenLastCalledWith({ data: [] });
+  });
+
+  it('rejects unknown and newly selected inactive Domains while preserving an existing inactive relation', async () => {
+    const missing = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
+    missing.intelligenceDomain.findMany.mockResolvedValueOnce([]);
+    await expect(missing.service.update('workspace-a', { domainIds: ['missing'] }, tenant('org-a'))).rejects.toBeInstanceOf(BadRequestException);
+    const inactive = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
+    inactive.intelligenceDomain.findMany.mockResolvedValueOnce([{ id: 'domain-old', isActive: false }]);
+    await expect(inactive.service.update('workspace-a', { domainIds: ['domain-old'] }, tenant('org-a'))).rejects.toBeInstanceOf(ConflictException);
+    const existing = harness([{ id: 'workspace-a', organizationId: 'org-a', domainLinks: [{ domain: { id: 'domain-old', isActive: false } }] }]);
+    existing.intelligenceDomain.findMany.mockResolvedValueOnce([{ id: 'domain-old', isActive: false }]);
+    await expect(existing.service.update('workspace-a', { domainIds: ['domain-old'] }, tenant('org-a'))).resolves.toMatchObject({ id: 'workspace-a' });
   });
 });

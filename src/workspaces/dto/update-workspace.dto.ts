@@ -11,6 +11,7 @@ export class UpdateWorkspaceDto {
   @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) inputLanguageIds?: string[];
   @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) outputLanguageIds?: string[];
   @ApiPropertyOptional({ format: 'uuid', nullable: true }) @IsOptional() @ValidateIf((_object, value) => value !== null) @IsUUID('4') defaultLanguageId?: string | null;
+  @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) domainIds?: string[];
 
   @ApiPropertyOptional({ example: 'Asia/Tehran' })
   @IsOptional()

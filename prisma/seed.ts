@@ -116,11 +116,20 @@ async function syncLanguages(prisma: SeedClient) {
   }
 }
 
+async function syncIntelligenceDomains(prisma: SeedClient) {
+  await prisma.intelligenceDomain.upsert({
+    where: { code: 'technology' },
+    update: {},
+    create: { code: 'technology', name: 'Technology' },
+  });
+}
+
 export async function runFoundationSeed(prisma: PrismaClient) {
   await prisma.$transaction(async (tx) => {
     await syncPermissions(tx);
     await syncAdminRole(tx);
     await syncLanguages(tx);
+    await syncIntelligenceDomains(tx);
   });
 }
 

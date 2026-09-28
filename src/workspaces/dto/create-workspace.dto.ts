@@ -15,6 +15,7 @@ export class CreateWorkspaceDto {
   @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) inputLanguageIds?: string[];
   @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) outputLanguageIds?: string[];
   @ApiPropertyOptional({ format: 'uuid', nullable: true }) @IsOptional() @IsUUID('4') defaultLanguageId?: string;
+  @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) domainIds?: string[];
 
   @ApiPropertyOptional({ default: 'Asia/Tehran', example: 'Asia/Tehran' })
   @IsOptional()
