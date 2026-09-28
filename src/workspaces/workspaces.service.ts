@@ -19,6 +19,7 @@ const workspaceSelect = {
   inputLanguageLinks: { select: { language: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } } }, orderBy: { language: { name: 'asc' as const } } },
   outputLanguageLinks: { select: { language: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } } }, orderBy: { language: { name: 'asc' as const } } },
   domainLinks: { select: { domain: { select: { id: true, code: true, name: true, description: true, isActive: true } } }, orderBy: { domain: { name: 'asc' as const } } },
+  topicLinks: { select: { topic: { select: { id: true, code: true, name: true, description: true, isActive: true, domainLinks: { select: { domain: { select: { id: true, code: true, name: true, description: true, isActive: true } } } } } } }, orderBy: { topic: { name: 'asc' as const } } },
   timezone: true,
   archivedAt: true,
   createdAt: true,
@@ -38,6 +39,7 @@ export class WorkspacesService {
         await this.validateLanguageSelection(tx, dto.inputLanguageIds ?? [], [], 'input');
         await this.validateLanguageSelection(tx, dto.outputLanguageIds ?? [], [], 'output');
         await this.validateDomainSelection(tx, dto.domainIds ?? [], []);
+        await this.validateTopicSelection(tx, dto.topicIds ?? [], [], dto.domainIds ?? []);
         this.validateDefault(dto.defaultLanguageId, dto.outputLanguageIds ?? []);
         const workspace = await tx.workspace.create({
           data: {
@@ -48,6 +50,7 @@ export class WorkspacesService {
             inputLanguageLinks: { create: (dto.inputLanguageIds ?? []).map((languageId) => ({ languageId })) },
             outputLanguageLinks: { create: (dto.outputLanguageIds ?? []).map((languageId) => ({ languageId })) },
             domainLinks: { create: (dto.domainIds ?? []).map((domainId) => ({ domainId })) },
+            topicLinks: { create: (dto.topicIds ?? []).map((topicId) => ({ topicId })) },
             timezone: this.normalizeTimezone(dto.timezone ?? 'Asia/Tehran'),
           },
           select: workspaceSelect,
@@ -109,12 +112,16 @@ export class WorkspacesService {
       const currentInput = current.inputLanguageLinks.map((link) => link.language.id);
       const currentOutput = current.outputLanguageLinks.map((link) => link.language.id);
       const currentDomains = current.domainLinks.map((link) => link.domain.id);
+      const currentTopics = current.topicLinks.map((link) => link.topic.id);
       const nextInput = dto.inputLanguageIds ?? currentInput;
       const nextOutput = dto.outputLanguageIds ?? currentOutput;
       const nextDefault = dto.defaultLanguageId !== undefined ? dto.defaultLanguageId : current.defaultLanguageId;
+      const nextDomains = dto.domainIds ?? currentDomains;
+      const nextTopics = dto.topicIds ?? currentTopics;
       if (dto.inputLanguageIds !== undefined) await this.validateLanguageSelection(tx, nextInput, currentInput, 'input');
       if (dto.outputLanguageIds !== undefined) await this.validateLanguageSelection(tx, nextOutput, currentOutput, 'output');
       if (dto.domainIds !== undefined) await this.validateDomainSelection(tx, dto.domainIds, currentDomains);
+      if (dto.topicIds !== undefined || dto.domainIds !== undefined) await this.validateTopicSelection(tx, nextTopics, currentTopics, nextDomains);
       this.validateDefault(nextDefault, nextOutput);
       if (dto.defaultLanguageId !== undefined) data.defaultLanguageId = dto.defaultLanguageId;
       await tx.workspace.updateMany({
@@ -132,6 +139,10 @@ export class WorkspacesService {
       if (dto.domainIds !== undefined) {
         await tx.workspaceDomain.deleteMany({ where: { workspaceId: id } });
         await tx.workspaceDomain.createMany({ data: dto.domainIds.map((domainId) => ({ workspaceId: id, domainId })) });
+      }
+      if (dto.topicIds !== undefined) {
+        await tx.workspaceTopic.deleteMany({ where: { workspaceId: id } });
+        if (nextTopics.length) await tx.workspaceTopic.createMany({ data: nextTopics.map((topicId) => ({ workspaceId: id, topicId })) });
       }
       const updated = await this.getScoped(tx, id, tenant);
       await this.recordAudit(tx, tenant, 'workspace.updated', id, current, updated);
@@ -178,6 +189,7 @@ export class WorkspacesService {
       inputLanguageIds: value.inputLanguageLinks?.map((link: any) => link.language.id),
       outputLanguageIds: value.outputLanguageLinks?.map((link: any) => link.language.id),
       domainIds: value.domainLinks?.map((link: any) => link.domain.id),
+      topicIds: value.topicLinks?.map((link: any) => link.topic.id),
       timezone: value.timezone,
     });
     return this.audit.recordTenantEvent({
@@ -228,9 +240,24 @@ export class WorkspacesService {
     if (found.some((domain) => !domain.isActive && !existing.has(domain.id))) throw new ConflictException('Inactive Intelligence Domain cannot be added to Workspace');
   }
 
+  private async validateTopicSelection(tx: TenantTransactionClient, ids: string[], existingIds: string[], workspaceDomainIds: string[]) {
+    const unique = [...new Set(ids)];
+    if (unique.length !== ids.length) throw new BadRequestException('Duplicate Topic selection');
+    if (!unique.length) return;
+    const found = await tx.topic.findMany({ where: { id: { in: unique } }, select: { id: true, isActive: true, domainLinks: { select: { domainId: true } } } });
+    if (found.length !== unique.length) throw new BadRequestException('Topic selection contains an unknown Topic');
+    const existing = new Set(existingIds);
+    if (found.some((topic) => !topic.isActive && !existing.has(topic.id))) throw new ConflictException('Inactive Topic cannot be added to Workspace');
+    if (workspaceDomainIds.length) {
+      const allowed = new Set(workspaceDomainIds);
+      if (found.some((topic) => !topic.domainLinks.some((link) => allowed.has(link.domainId)))) throw new ConflictException('Each Workspace Topic must share at least one Workspace Domain');
+    }
+  }
+
   private present(workspace: any) {
-    const { inputLanguageLinks, outputLanguageLinks, domainLinks, ...rest } = workspace;
-    return { ...rest, inputLanguages: inputLanguageLinks.map((link: any) => link.language), outputLanguages: outputLanguageLinks.map((link: any) => link.language), domains: (domainLinks ?? []).map((link: any) => link.domain) };
+    const { inputLanguageLinks, outputLanguageLinks, domainLinks, topicLinks, ...rest } = workspace;
+    const topics = (topicLinks ?? []).map((link: any) => { const { domainLinks: topicDomains, ...topic } = link.topic; return { ...topic, domains: topicDomains.map((item: any) => item.domain) }; });
+    return { ...rest, inputLanguages: inputLanguageLinks.map((link: any) => link.language), outputLanguages: outputLanguageLinks.map((link: any) => link.language), domains: (domainLinks ?? []).map((link: any) => link.domain), topics };
   }
 
   private normalizeTimezone(value: string) {

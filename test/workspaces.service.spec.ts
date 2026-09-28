@@ -15,6 +15,7 @@ type WorkspaceRow = {
   inputLanguageLinks: any[];
   outputLanguageLinks: any[];
   domainLinks: any[];
+  topicLinks: any[];
   timezone: string;
   archivedAt: Date | null;
   createdAt: Date;
@@ -59,6 +60,7 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
     inputLanguageLinks: row.inputLanguageLinks ?? [],
     outputLanguageLinks: row.outputLanguageLinks ?? [],
     domainLinks: row.domainLinks ?? [],
+    topicLinks: row.topicLinks ?? [],
     timezone: row.timezone ?? 'Asia/Tehran',
     archivedAt: row.archivedAt ?? null,
     createdAt: row.createdAt ?? new Date('2026-01-01T00:00:00Z'),
@@ -87,6 +89,7 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
         inputLanguageLinks: (data.inputLanguageLinks?.create ?? []).map(({ languageId }) => ({ language: { id: languageId, isActive: true } })),
         outputLanguageLinks: (data.outputLanguageLinks?.create ?? []).map(({ languageId }) => ({ language: { id: languageId, isActive: true } })),
         domainLinks: (data.domainLinks?.create ?? []).map(({ domainId }) => ({ domain: { id: domainId, isActive: true } })),
+        topicLinks: (data.topicLinks?.create ?? []).map(({ topicId }) => ({ topic: { id: topicId, isActive: true, domainLinks: [] } })),
         timezone: data.timezone,
         archivedAt: null,
         createdAt: now,
@@ -111,17 +114,19 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
   };
   const language = { findMany: jest.fn(async ({ where }: any) => (where.id.in ?? []).map((id: string) => ({ id, isActive: true }))) };
   const intelligenceDomain = { findMany: jest.fn(async ({ where }: any) => (where.id.in ?? []).map((id: string) => ({ id, isActive: true }))) };
+  const topic = { findMany: jest.fn(async ({ where }: any) => (where.id.in ?? []).map((id: string) => ({ id, isActive: true, domainLinks: [] }))) };
   const workspaceInputLanguage = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
   const workspaceOutputLanguage = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
   const workspaceDomain = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
-  const tx: any = { workspace, auditLog, language, intelligenceDomain, workspaceInputLanguage, workspaceOutputLanguage, workspaceDomain };
+  const workspaceTopic = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
+  const tx: any = { workspace, auditLog, language, intelligenceDomain, topic, workspaceInputLanguage, workspaceOutputLanguage, workspaceDomain, workspaceTopic };
   const prisma: any = {
     withTenantTransaction: jest.fn(async (_tenant, callback) => callback(tx)),
   };
   const audit: any = {
     recordTenantEvent: jest.fn(async (input, db) => db.auditLog.create({ data: input })),
   };
-  return { rows, workspace, language, intelligenceDomain, workspaceInputLanguage, workspaceOutputLanguage, workspaceDomain, tx, prisma, audit, service: new WorkspacesService(prisma, audit) };
+  return { rows, workspace, language, intelligenceDomain, topic, workspaceInputLanguage, workspaceOutputLanguage, workspaceDomain, workspaceTopic, tx, prisma, audit, service: new WorkspacesService(prisma, audit) };
 }
 
 describe('WorkspacesService', () => {
@@ -294,5 +299,16 @@ describe('WorkspacesService', () => {
     const existing = harness([{ id: 'workspace-a', organizationId: 'org-a', domainLinks: [{ domain: { id: 'domain-old', isActive: false } }] }]);
     existing.intelligenceDomain.findMany.mockResolvedValueOnce([{ id: 'domain-old', isActive: false }]);
     await expect(existing.service.update('workspace-a', { domainIds: ['domain-old'] }, tenant('org-a'))).resolves.toMatchObject({ id: 'workspace-a' });
+  });
+
+  it('assigns multiple Topics and enforces active state and Workspace Domain overlap', async () => {
+    const valid = harness([{ id: 'workspace-a', organizationId: 'org-a', domainLinks: [{ domain: { id: 'domain-a', isActive: true } }] }]);
+    valid.topic.findMany.mockResolvedValueOnce([{ id: 'topic-a', isActive: true, domainLinks: [{ domainId: 'domain-a' }] }, { id: 'topic-b', isActive: true, domainLinks: [{ domainId: 'domain-a' }] }]);
+    await valid.service.update('workspace-a', { topicIds: ['topic-a', 'topic-b'] }, tenant('org-a'));
+    expect(valid.workspaceTopic.createMany).toHaveBeenCalledWith({ data: [{ workspaceId: 'workspace-a', topicId: 'topic-a' }, { workspaceId: 'workspace-a', topicId: 'topic-b' }] });
+    const inactive = harness([{ id: 'workspace-a', organizationId: 'org-a' }]); inactive.topic.findMany.mockResolvedValueOnce([{ id: 'topic-a', isActive: false, domainLinks: [] }]);
+    await expect(inactive.service.update('workspace-a', { topicIds: ['topic-a'] }, tenant('org-a'))).rejects.toBeInstanceOf(ConflictException);
+    const mismatch = harness([{ id: 'workspace-a', organizationId: 'org-a', domainLinks: [{ domain: { id: 'domain-a' } }] }]); mismatch.topic.findMany.mockResolvedValueOnce([{ id: 'topic-a', isActive: true, domainLinks: [{ domainId: 'domain-b' }] }]);
+    await expect(mismatch.service.update('workspace-a', { topicIds: ['topic-a'] }, tenant('org-a'))).rejects.toBeInstanceOf(ConflictException);
   });
 });

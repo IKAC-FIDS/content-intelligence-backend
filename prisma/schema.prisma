@@ -318,6 +318,7 @@ model Workspace {
   inputLanguageLinks        WorkspaceInputLanguage[]
   outputLanguageLinks       WorkspaceOutputLanguage[]
   domainLinks               WorkspaceDomain[]
+  topicLinks                WorkspaceTopic[]
   timezone                  String                    @default("Asia/Tehran")
   archivedAt                DateTime?
   createdAt                 DateTime                  @default(now())
@@ -342,6 +343,7 @@ model Language {
   defaultForWorkspaces Workspace[]               @relation("WorkspaceDefaultLanguage")
   inputWorkspaceLinks  WorkspaceInputLanguage[]
   outputWorkspaceLinks WorkspaceOutputLanguage[]
+  topicAliases         TopicAlias[]
 
   @@index([isActive, name])
   @@map("languages")
@@ -381,6 +383,7 @@ model IntelligenceDomain {
   updatedAt   DateTime @updatedAt
 
   workspaceLinks WorkspaceDomain[]
+  topicLinks     TopicDomain[]
 
   @@index([isActive, name])
   @@map("intelligence_domains")
@@ -396,6 +399,63 @@ model WorkspaceDomain {
   @@id([workspaceId, domainId])
   @@index([domainId])
   @@map("workspace_domains")
+}
+
+model Topic {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  domainLinks    TopicDomain[]
+  aliases        TopicAlias[]
+  workspaceLinks WorkspaceTopic[]
+
+  @@index([isActive, name])
+  @@map("topics")
+}
+
+model TopicDomain {
+  topicId   String
+  domainId  String
+  topic     Topic              @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  domain    IntelligenceDomain @relation(fields: [domainId], references: [id], onDelete: Restrict)
+  createdAt DateTime           @default(now())
+
+  @@id([topicId, domainId])
+  @@index([domainId])
+  @@map("topic_domains")
+}
+
+model TopicAlias {
+  id              String    @id @default(uuid())
+  topicId         String
+  topic           Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  value           String
+  normalizedValue String
+  languageId      String?
+  language        Language? @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([topicId, normalizedValue])
+  @@index([languageId])
+  @@map("topic_aliases")
+}
+
+model WorkspaceTopic {
+  workspaceId String
+  topicId     String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  topic       Topic     @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now())
+
+  @@id([workspaceId, topicId])
+  @@index([topicId])
+  @@map("workspace_topics")
 }
 
 model OrganizationSettings {
