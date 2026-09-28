@@ -1,8 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsTimeZone, Matches, MaxLength } from 'class-validator';
-
-export const WORKSPACE_LANGUAGE_CODE_PATTERN =
-  /^[A-Za-z]{2,3}(?:-[A-Za-z]{4})?(?:-(?:[A-Za-z]{2}|\d{3}))?(?:-[A-Za-z0-9]{5,8}|-\d[A-Za-z0-9]{3})*$/;
+import { ArrayUnique, IsArray, IsOptional, IsString, IsTimeZone, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateWorkspaceDto {
   @ApiProperty({ maxLength: 160, example: 'Technology Intelligence' })
@@ -15,17 +12,9 @@ export class CreateWorkspaceDto {
   @MaxLength(80)
   code!: string;
 
-  @ApiPropertyOptional({
-    maxLength: 35,
-    pattern: WORKSPACE_LANGUAGE_CODE_PATTERN.source,
-    example: 'fa-IR',
-    nullable: true,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(35)
-  @Matches(WORKSPACE_LANGUAGE_CODE_PATTERN)
-  defaultLanguageCode?: string;
+  @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) inputLanguageIds?: string[];
+  @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) outputLanguageIds?: string[];
+  @ApiPropertyOptional({ format: 'uuid', nullable: true }) @IsOptional() @IsUUID('4') defaultLanguageId?: string;
 
   @ApiPropertyOptional({ default: 'Asia/Tehran', example: 'Asia/Tehran' })
   @IsOptional()

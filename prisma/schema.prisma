@@ -139,6 +139,11 @@ enum WorkspaceStatus {
   ARCHIVED
 }
 
+enum LanguageDirection {
+  LTR
+  RTL
+}
+
 enum OrganizationCalendarSystem {
   GREGORIAN
   PERSIAN
@@ -299,22 +304,70 @@ model Organization {
 }
 
 model Workspace {
-  id                  String          @id @default(uuid())
-  organizationId      String
-  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  name                String
-  code                String
-  status              WorkspaceStatus @default(ACTIVE)
-  settings            Json            @default("{}")
-  defaultLanguageCode String?
-  timezone            String          @default("Asia/Tehran")
-  archivedAt          DateTime?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  id                        String                    @id @default(uuid())
+  organizationId            String
+  organization              Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name                      String
+  code                      String
+  status                    WorkspaceStatus           @default(ACTIVE)
+  settings                  Json                      @default("{}")
+  defaultLanguageId         String?
+  defaultLanguage           Language?                 @relation("WorkspaceDefaultLanguage", fields: [defaultLanguageId], references: [id], onDelete: Restrict)
+  /// Compatibility snapshot from Workspace Core. Runtime authority is defaultLanguageId.
+  legacyDefaultLanguageCode String?                   @map("defaultLanguageCode")
+  inputLanguageLinks        WorkspaceInputLanguage[]
+  outputLanguageLinks       WorkspaceOutputLanguage[]
+  timezone                  String                    @default("Asia/Tehran")
+  archivedAt                DateTime?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
+  @@index([defaultLanguageId])
   @@map("workspaces")
+}
+
+model Language {
+  id         String            @id @default(uuid())
+  code       String            @unique
+  name       String
+  nativeName String
+  direction  LanguageDirection
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  defaultForWorkspaces Workspace[]               @relation("WorkspaceDefaultLanguage")
+  inputWorkspaceLinks  WorkspaceInputLanguage[]
+  outputWorkspaceLinks WorkspaceOutputLanguage[]
+
+  @@index([isActive, name])
+  @@map("languages")
+}
+
+model WorkspaceInputLanguage {
+  workspaceId String
+  languageId  String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  language    Language  @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now())
+
+  @@id([workspaceId, languageId])
+  @@index([languageId])
+  @@map("workspace_input_languages")
+}
+
+model WorkspaceOutputLanguage {
+  workspaceId String
+  languageId  String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  language    Language  @relation(fields: [languageId], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now())
+
+  @@id([workspaceId, languageId])
+  @@index([languageId])
+  @@map("workspace_output_languages")
 }
 
 model OrganizationSettings {

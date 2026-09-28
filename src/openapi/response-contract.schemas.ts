@@ -1,6 +1,15 @@
 type Schema = Record<string, unknown>;
 
 export const RESPONSE_CONTRACT_SCHEMAS: Record<string, Schema> = {
+  LanguageDirection: { type: 'string', enum: ['LTR', 'RTL'] },
+  Language: {
+    type: 'object', required: ['id', 'code', 'name', 'nativeName', 'direction', 'isActive', 'createdAt', 'updatedAt'],
+    properties: {
+      id: { type: 'string', format: 'uuid' }, code: { type: 'string', maxLength: 35 }, name: { type: 'string', maxLength: 120 },
+      nativeName: { type: 'string', maxLength: 120 }, direction: { $ref: '#/components/schemas/LanguageDirection' }, isActive: { type: 'boolean' },
+      createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' },
+    },
+  },
   WorkspaceStatus: { type: 'string', enum: ['ACTIVE', 'ARCHIVED'] },
   Workspace: {
     type: 'object',
@@ -11,7 +20,7 @@ export const RESPONSE_CONTRACT_SCHEMAS: Record<string, Schema> = {
       'code',
       'status',
       'settings',
-      'defaultLanguageCode',
+      'defaultLanguageId', 'defaultLanguage', 'inputLanguages', 'outputLanguages',
       'timezone',
       'archivedAt',
       'createdAt',
@@ -24,7 +33,10 @@ export const RESPONSE_CONTRACT_SCHEMAS: Record<string, Schema> = {
       code: { type: 'string', maxLength: 80 },
       status: { $ref: '#/components/schemas/WorkspaceStatus' },
       settings: { type: 'object', additionalProperties: true },
-      defaultLanguageCode: { type: 'string', nullable: true, maxLength: 35 },
+      defaultLanguageId: { type: 'string', format: 'uuid', nullable: true },
+      defaultLanguage: { type: 'object', allOf: [{ $ref: '#/components/schemas/Language' }], nullable: true },
+      inputLanguages: { type: 'array', items: { $ref: '#/components/schemas/Language' } },
+      outputLanguages: { type: 'array', items: { $ref: '#/components/schemas/Language' } },
       timezone: { type: 'string', example: 'Asia/Tehran' },
       archivedAt: { type: 'string', format: 'date-time', nullable: true },
       createdAt: { type: 'string', format: 'date-time' },
@@ -45,4 +57,11 @@ export const TYPED_SUCCESS_PAYLOADS: Record<
   'GET /api/workspaces/{id}': { schema: { $ref: '#/components/schemas/Workspace' } },
   'PATCH /api/workspaces/{id}': { schema: { $ref: '#/components/schemas/Workspace' } },
   'PATCH /api/workspaces/{id}/archive': { schema: { $ref: '#/components/schemas/Workspace' } },
+  'GET /api/languages': { schema: { $ref: '#/components/schemas/Language' }, paginated: true },
+  'GET /api/admin/languages': { schema: { $ref: '#/components/schemas/Language' }, paginated: true },
+  'GET /api/admin/languages/{id}': { schema: { $ref: '#/components/schemas/Language' } },
+  'POST /api/admin/languages': { schema: { $ref: '#/components/schemas/Language' } },
+  'PATCH /api/admin/languages/{id}': { schema: { $ref: '#/components/schemas/Language' } },
+  'PATCH /api/admin/languages/{id}/activate': { schema: { $ref: '#/components/schemas/Language' } },
+  'PATCH /api/admin/languages/{id}/deactivate': { schema: { $ref: '#/components/schemas/Language' } },
 };

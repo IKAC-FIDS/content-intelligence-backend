@@ -33,6 +33,7 @@ export interface AuthUserResponse {
   roleCode: string;
   roleName: string;
   avatarObjectKey: string | null;
+  platformAdmin: boolean;
 }
 
 export interface AuthAccessResponse {
@@ -240,6 +241,10 @@ export class AuthService {
       resolved === undefined ? await this.resolveLoginContext(user.id) : resolved;
     const roleCode = effective?.roleCode ?? 'PLATFORM_ADMIN';
     const roleName = effective?.roleName ?? 'Platform Admin';
+    const platformAuthorityRepository = (this.prisma as PrismaService & { platformAuthority?: PrismaService['platformAuthority'] }).platformAuthority;
+    const platformAuthority = platformAuthorityRepository
+      ? await platformAuthorityRepository.findUnique({ where: { userId: user.id }, select: { role: true } })
+      : null;
     const payload = {
       sub: user.id,
       email: user.email,
@@ -266,6 +271,7 @@ export class AuthService {
         roleCode,
         roleName,
         avatarObjectKey: user.avatarObjectKey,
+        platformAdmin: platformAuthority?.role === 'PLATFORM_ADMIN',
       },
     };
   }

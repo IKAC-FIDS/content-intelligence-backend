@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsTimeZone, Matches, MaxLength, ValidateIf } from 'class-validator';
-import { WORKSPACE_LANGUAGE_CODE_PATTERN } from './create-workspace.dto';
+import { ArrayUnique, IsArray, IsOptional, IsString, IsTimeZone, IsUUID, MaxLength, ValidateIf } from 'class-validator';
 
 export class UpdateWorkspaceDto {
   @ApiPropertyOptional({ maxLength: 160 })
@@ -9,17 +8,9 @@ export class UpdateWorkspaceDto {
   @MaxLength(160)
   name?: string;
 
-  @ApiPropertyOptional({
-    maxLength: 35,
-    pattern: WORKSPACE_LANGUAGE_CODE_PATTERN.source,
-    nullable: true,
-  })
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null)
-  @IsString()
-  @MaxLength(35)
-  @Matches(WORKSPACE_LANGUAGE_CODE_PATTERN)
-  defaultLanguageCode?: string | null;
+  @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) inputLanguageIds?: string[];
+  @ApiPropertyOptional({ type: [String], format: 'uuid' }) @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true }) outputLanguageIds?: string[];
+  @ApiPropertyOptional({ format: 'uuid', nullable: true }) @IsOptional() @ValidateIf((_object, value) => value !== null) @IsUUID('4') defaultLanguageId?: string | null;
 
   @ApiPropertyOptional({ example: 'Asia/Tehran' })
   @IsOptional()

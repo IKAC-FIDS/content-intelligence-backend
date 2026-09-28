@@ -18,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { QuotaModule } from './quota/quota.module';
 import { UsersModule } from './users/users.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
+import { LanguagesModule } from './languages/languages.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     EntitlementsModule,
     QuotaModule,
     WorkspacesModule,
+    LanguagesModule,
   ],
 
   providers: [

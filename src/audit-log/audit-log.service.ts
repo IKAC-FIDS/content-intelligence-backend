@@ -113,6 +113,7 @@ export class AuditLogService {
   recordPlatformEvent(
     platform: PlatformScopeContext,
     input: Omit<RecordAuditInput, "scope" | "actorId" | "actorType" | "actorMembershipId">,
+    db: Pick<Prisma.TransactionClient, "auditLog"> = this.prisma,
   ) {
     return this.record({
       ...input,
@@ -122,7 +123,7 @@ export class AuditLogService {
       actorMembershipId: null,
       source: input.source ?? AuditSource.PLATFORM,
       requestId: input.requestId ?? platform.requestId,
-    });
+    }, db);
   }
   async findAll(query: FindAuditLogsDto, user: CurrentUserPayload) {
     const page = query.page ?? 1,

@@ -107,10 +107,20 @@ async function syncAdminRole(prisma: SeedClient) {
   });
 }
 
+async function syncLanguages(prisma: SeedClient) {
+  for (const language of [
+    { code: 'en', name: 'English', nativeName: 'English', direction: 'LTR' as const },
+    { code: 'fa', name: 'Persian', nativeName: 'فارسی', direction: 'RTL' as const },
+  ]) {
+    await prisma.language.upsert({ where: { code: language.code }, update: {}, create: language });
+  }
+}
+
 export async function runFoundationSeed(prisma: PrismaClient) {
   await prisma.$transaction(async (tx) => {
     await syncPermissions(tx);
     await syncAdminRole(tx);
+    await syncLanguages(tx);
   });
 }
 

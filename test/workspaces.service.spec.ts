@@ -10,7 +10,10 @@ type WorkspaceRow = {
   code: string;
   status: WorkspaceStatus;
   settings: Record<string, never>;
-  defaultLanguageCode: string | null;
+  defaultLanguageId: string | null;
+  defaultLanguage: any;
+  inputLanguageLinks: any[];
+  outputLanguageLinks: any[];
   timezone: string;
   archivedAt: Date | null;
   createdAt: Date;
@@ -50,7 +53,10 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
     code: row.code ?? `WORKSPACE_${sequence}`,
     status: row.status ?? WorkspaceStatus.ACTIVE,
     settings: {},
-    defaultLanguageCode: row.defaultLanguageCode ?? null,
+    defaultLanguageId: row.defaultLanguageId ?? null,
+    defaultLanguage: row.defaultLanguage ?? null,
+    inputLanguageLinks: row.inputLanguageLinks ?? [],
+    outputLanguageLinks: row.outputLanguageLinks ?? [],
     timezone: row.timezone ?? 'Asia/Tehran',
     archivedAt: row.archivedAt ?? null,
     createdAt: row.createdAt ?? new Date('2026-01-01T00:00:00Z'),
@@ -74,7 +80,10 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
         code: data.code,
         status: WorkspaceStatus.ACTIVE,
         settings: {},
-        defaultLanguageCode: data.defaultLanguageCode ?? null,
+        defaultLanguageId: data.defaultLanguageId ?? null,
+        defaultLanguage: null,
+        inputLanguageLinks: (data.inputLanguageLinks?.create ?? []).map(({ languageId }) => ({ language: { id: languageId, isActive: true } })),
+        outputLanguageLinks: (data.outputLanguageLinks?.create ?? []).map(({ languageId }) => ({ language: { id: languageId, isActive: true } })),
         timezone: data.timezone,
         archivedAt: null,
         createdAt: now,
@@ -97,21 +106,24 @@ function harness(initial: Partial<WorkspaceRow>[] = []) {
       return { count: affected.length };
     }),
   };
-  const tx: any = { workspace, auditLog };
+  const language = { findMany: jest.fn(async ({ where }: any) => (where.id.in ?? []).map((id: string) => ({ id, isActive: true }))) };
+  const workspaceInputLanguage = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
+  const workspaceOutputLanguage = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), createMany: jest.fn().mockResolvedValue({ count: 0 }) };
+  const tx: any = { workspace, auditLog, language, workspaceInputLanguage, workspaceOutputLanguage };
   const prisma: any = {
     withTenantTransaction: jest.fn(async (_tenant, callback) => callback(tx)),
   };
   const audit: any = {
     recordTenantEvent: jest.fn(async (input, db) => db.auditLog.create({ data: input })),
   };
-  return { rows, workspace, tx, prisma, audit, service: new WorkspacesService(prisma, audit) };
+  return { rows, workspace, language, workspaceInputLanguage, workspaceOutputLanguage, tx, prisma, audit, service: new WorkspacesService(prisma, audit) };
 }
 
 describe('WorkspacesService', () => {
   it('creates a tenant-owned Workspace with canonical code and language', async () => {
     const { service, audit } = harness();
     const created = await service.create(
-      { name: '  Technology Intelligence  ', code: 'tech-intel', defaultLanguageCode: 'FA-ir' },
+      { name: '  Technology Intelligence  ', code: 'tech-intel' },
       tenant('org-a'),
     );
 
@@ -120,7 +132,7 @@ describe('WorkspacesService', () => {
       name: 'Technology Intelligence',
       code: 'TECH_INTEL',
       status: WorkspaceStatus.ACTIVE,
-      defaultLanguageCode: 'fa-IR',
+      defaultLanguageId: null,
       timezone: 'Asia/Tehran',
     });
     expect(audit.recordTenantEvent).toHaveBeenCalledWith(
@@ -208,7 +220,7 @@ describe('WorkspacesService', () => {
     const { service, rows, audit } = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
     const updated = await service.update(
       'workspace-a',
-      { name: 'Updated', timezone: 'Europe/London', defaultLanguageCode: null },
+      { name: 'Updated', timezone: 'Europe/London', defaultLanguageId: null },
       tenant('org-a'),
     );
     expect(updated).toMatchObject({ id: 'workspace-a', name: 'Updated', code: rows[0].code, timezone: 'Europe/London' });
@@ -236,5 +248,22 @@ describe('WorkspacesService', () => {
     await expect(service.update('workspace-a', { name: 'Changed' }, tenant('org-a'))).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+
+  it('stores separate input/output selections and enforces the default-output invariant', async () => {
+    const { service, workspaceInputLanguage, workspaceOutputLanguage } = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
+    await service.update('workspace-a', { inputLanguageIds: ['language-en'], outputLanguageIds: ['language-fa'], defaultLanguageId: 'language-fa' }, tenant('org-a'));
+    expect(workspaceInputLanguage.createMany).toHaveBeenCalledWith({ data: [{ workspaceId: 'workspace-a', languageId: 'language-en' }] });
+    expect(workspaceOutputLanguage.createMany).toHaveBeenCalledWith({ data: [{ workspaceId: 'workspace-a', languageId: 'language-fa' }] });
+    await expect(service.update('workspace-a', { outputLanguageIds: ['language-en'], defaultLanguageId: 'language-fa' }, tenant('org-a'))).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects nonexistent and newly selected inactive Languages', async () => {
+    const missing = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
+    missing.language.findMany.mockResolvedValueOnce([]);
+    await expect(missing.service.update('workspace-a', { inputLanguageIds: ['missing'] }, tenant('org-a'))).rejects.toBeInstanceOf(BadRequestException);
+    const inactive = harness([{ id: 'workspace-a', organizationId: 'org-a' }]);
+    inactive.language.findMany.mockResolvedValueOnce([{ id: 'language-old', isActive: false }]);
+    await expect(inactive.service.update('workspace-a', { inputLanguageIds: ['language-old'] }, tenant('org-a'))).rejects.toBeInstanceOf(ConflictException);
   });
 });

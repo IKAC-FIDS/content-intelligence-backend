@@ -25,6 +25,7 @@ describe('Foundation Seed', () => {
       rolePermission: {
         createMany: jest.fn().mockResolvedValue({ count: permissionIds.length }),
       },
+      language: { upsert: jest.fn().mockResolvedValue({}) },
     };
     const prisma = {
       $transaction: jest.fn(async (operation: (value: typeof tx) => unknown) =>
@@ -59,6 +60,7 @@ describe('Foundation Seed', () => {
       ]),
       skipDuplicates: true,
     });
+    expect(tx.language.upsert).toHaveBeenCalledTimes(2);
     expect(tx).not.toHaveProperty('organization');
     expect(tx).not.toHaveProperty('user');
     expect(tx).not.toHaveProperty('organizationMembership');

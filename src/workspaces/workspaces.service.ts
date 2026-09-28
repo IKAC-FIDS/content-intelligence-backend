@@ -3,7 +3,7 @@ import { Prisma, WorkspaceStatus } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import type { TenantContext } from '../common/tenant/tenant-context.types';
 import { PrismaService, TenantTransactionClient } from '../prisma/prisma.service';
-import { CreateWorkspaceDto, WORKSPACE_LANGUAGE_CODE_PATTERN } from './dto/create-workspace.dto';
+import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { FindWorkspacesDto } from './dto/find-workspaces.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 
@@ -14,7 +14,10 @@ const workspaceSelect = {
   code: true,
   status: true,
   settings: true,
-  defaultLanguageCode: true,
+  defaultLanguageId: true,
+  defaultLanguage: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } },
+  inputLanguageLinks: { select: { language: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } } }, orderBy: { language: { name: 'asc' as const } } },
+  outputLanguageLinks: { select: { language: { select: { id: true, code: true, name: true, nativeName: true, direction: true, isActive: true } } }, orderBy: { language: { name: 'asc' as const } } },
   timezone: true,
   archivedAt: true,
   createdAt: true,
@@ -31,18 +34,23 @@ export class WorkspacesService {
   create(dto: CreateWorkspaceDto, tenant: TenantContext) {
     return this.prisma.withTenantTransaction(tenant, async (tx) => {
       try {
+        await this.validateLanguageSelection(tx, dto.inputLanguageIds ?? [], [], 'input');
+        await this.validateLanguageSelection(tx, dto.outputLanguageIds ?? [], [], 'output');
+        this.validateDefault(dto.defaultLanguageId, dto.outputLanguageIds ?? []);
         const workspace = await tx.workspace.create({
           data: {
             organizationId: tenant.organizationId,
             name: this.requiredName(dto.name),
             code: this.normalizeCode(dto.code),
-            defaultLanguageCode: this.normalizeLanguage(dto.defaultLanguageCode),
+            defaultLanguageId: dto.defaultLanguageId,
+            inputLanguageLinks: { create: (dto.inputLanguageIds ?? []).map((languageId) => ({ languageId })) },
+            outputLanguageLinks: { create: (dto.outputLanguageIds ?? []).map((languageId) => ({ languageId })) },
             timezone: this.normalizeTimezone(dto.timezone ?? 'Asia/Tehran'),
           },
           select: workspaceSelect,
         });
         await this.recordAudit(tx, tenant, 'workspace.created', workspace.id, undefined, workspace);
-        return workspace;
+        return this.present(workspace);
       } catch (error) {
         this.rethrowCodeConflict(error);
       }
@@ -76,14 +84,14 @@ export class WorkspacesService {
       ]);
       const totalPages = Math.ceil(total / limit);
       return {
-        data,
+        data: data.map((workspace) => this.present(workspace)),
         meta: { total, page, limit, totalPages, hasNext: page < totalPages, hasPrevious: page > 1 },
       };
     });
   }
 
   findOne(id: string, tenant: TenantContext) {
-    return this.prisma.withTenantTransaction(tenant, (tx) => this.getScoped(tx, id, tenant));
+    return this.prisma.withTenantTransaction(tenant, async (tx) => this.present(await this.getScoped(tx, id, tenant)));
   }
 
   update(id: string, dto: UpdateWorkspaceDto, tenant: TenantContext) {
@@ -92,33 +100,47 @@ export class WorkspacesService {
       if (current.status === WorkspaceStatus.ARCHIVED) {
         throw new ConflictException('Archived Workspace cannot be updated');
       }
-      const data: Prisma.WorkspaceUpdateManyMutationInput = {};
+      const data: Prisma.WorkspaceUncheckedUpdateManyInput = {};
       if (dto.name !== undefined) data.name = this.requiredName(dto.name);
-      if (dto.defaultLanguageCode !== undefined) {
-        data.defaultLanguageCode = this.normalizeLanguage(dto.defaultLanguageCode);
-      }
       if (dto.timezone !== undefined) data.timezone = this.normalizeTimezone(dto.timezone);
+      const currentInput = current.inputLanguageLinks.map((link) => link.language.id);
+      const currentOutput = current.outputLanguageLinks.map((link) => link.language.id);
+      const nextInput = dto.inputLanguageIds ?? currentInput;
+      const nextOutput = dto.outputLanguageIds ?? currentOutput;
+      const nextDefault = dto.defaultLanguageId !== undefined ? dto.defaultLanguageId : current.defaultLanguageId;
+      if (dto.inputLanguageIds !== undefined) await this.validateLanguageSelection(tx, nextInput, currentInput, 'input');
+      if (dto.outputLanguageIds !== undefined) await this.validateLanguageSelection(tx, nextOutput, currentOutput, 'output');
+      this.validateDefault(nextDefault, nextOutput);
+      if (dto.defaultLanguageId !== undefined) data.defaultLanguageId = dto.defaultLanguageId;
       await tx.workspace.updateMany({
         where: { id, organizationId: tenant.organizationId, status: WorkspaceStatus.ACTIVE },
         data,
       });
+      if (dto.inputLanguageIds !== undefined) {
+        await tx.workspaceInputLanguage.deleteMany({ where: { workspaceId: id } });
+        await tx.workspaceInputLanguage.createMany({ data: nextInput.map((languageId) => ({ workspaceId: id, languageId })) });
+      }
+      if (dto.outputLanguageIds !== undefined) {
+        await tx.workspaceOutputLanguage.deleteMany({ where: { workspaceId: id } });
+        await tx.workspaceOutputLanguage.createMany({ data: nextOutput.map((languageId) => ({ workspaceId: id, languageId })) });
+      }
       const updated = await this.getScoped(tx, id, tenant);
       await this.recordAudit(tx, tenant, 'workspace.updated', id, current, updated);
-      return updated;
+      return this.present(updated);
     });
   }
 
   archive(id: string, tenant: TenantContext) {
     return this.prisma.withTenantTransaction(tenant, async (tx) => {
       const current = await this.getScoped(tx, id, tenant);
-      if (current.status === WorkspaceStatus.ARCHIVED) return current;
+      if (current.status === WorkspaceStatus.ARCHIVED) return this.present(current);
       await tx.workspace.updateMany({
         where: { id, organizationId: tenant.organizationId, status: WorkspaceStatus.ACTIVE },
         data: { status: WorkspaceStatus.ARCHIVED, archivedAt: new Date() },
       });
       const archived = await this.getScoped(tx, id, tenant);
       await this.recordAudit(tx, tenant, 'workspace.archived', id, current, archived);
-      return archived;
+      return this.present(archived);
     });
   }
 
@@ -136,14 +158,16 @@ export class WorkspacesService {
     tenant: TenantContext,
     action: string,
     entityId: string,
-    before?: { name: string; code: string; status: WorkspaceStatus; defaultLanguageCode: string | null; timezone: string },
-    after?: { name: string; code: string; status: WorkspaceStatus; defaultLanguageCode: string | null; timezone: string },
+    before?: any,
+    after?: any,
   ) {
     const snapshot = (value: typeof before) => value && ({
       name: value.name,
       code: value.code,
       status: value.status,
-      defaultLanguageCode: value.defaultLanguageCode,
+      defaultLanguageId: value.defaultLanguageId,
+      inputLanguageIds: value.inputLanguageLinks?.map((link: any) => link.language.id),
+      outputLanguageIds: value.outputLanguageLinks?.map((link: any) => link.language.id),
       timezone: value.timezone,
     });
     return this.audit.recordTenantEvent({
@@ -171,21 +195,22 @@ export class WorkspacesService {
     return code;
   }
 
-  private normalizeLanguage(value: string | null | undefined) {
-    if (value == null) return null;
-    const normalized = value.trim();
-    if (!WORKSPACE_LANGUAGE_CODE_PATTERN.test(normalized)) {
-      throw new BadRequestException('Workspace default language code is invalid');
-    }
-    const parts = normalized.split('-');
-    return parts
-      .map((part, index) => {
-        if (index === 0) return part.toLowerCase();
-        if (part.length === 4) return `${part[0].toUpperCase()}${part.slice(1).toLowerCase()}`;
-        if (part.length === 2) return part.toUpperCase();
-        return part.toLowerCase();
-      })
-      .join('-');
+  private async validateLanguageSelection(tx: TenantTransactionClient, ids: string[], existingIds: string[], label: string) {
+    const unique = [...new Set(ids)];
+    if (unique.length !== ids.length) throw new BadRequestException(`Duplicate ${label} Language selection`);
+    const found = await tx.language.findMany({ where: { id: { in: unique } }, select: { id: true, isActive: true } });
+    if (found.length !== unique.length) throw new BadRequestException(`${label} Language selection contains an unknown Language`);
+    const existing = new Set(existingIds);
+    if (found.some((language) => !language.isActive && !existing.has(language.id))) throw new ConflictException(`Inactive Language cannot be added to Workspace ${label} languages`);
+  }
+
+  private validateDefault(defaultLanguageId: string | null | undefined, outputLanguageIds: string[]) {
+    if (defaultLanguageId && !outputLanguageIds.includes(defaultLanguageId)) throw new BadRequestException('Default Language must belong to Workspace output languages');
+  }
+
+  private present(workspace: any) {
+    const { inputLanguageLinks, outputLanguageLinks, ...rest } = workspace;
+    return { ...rest, inputLanguages: inputLanguageLinks.map((link: any) => link.language), outputLanguages: outputLanguageLinks.map((link: any) => link.language) };
   }
 
   private normalizeTimezone(value: string) {
